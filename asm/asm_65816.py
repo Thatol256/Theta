@@ -9,6 +9,8 @@ DATATYPES = ["ubyte", "ushort", "uint", "byte", "short", "int", "vector", "point
 REGISTERS = ["A", "X", "Y", "PC"]
 ALIASES = {"u8": "ubyte", "u16": "ushort", "u32": "uint", "i8": "byte", "i16": "short", "i32": "int"}
 
+def funcReturn(): pass
+
 #before translating addressing modes:
 #replace variables with their respective address
 #replace binary and decimal with hexadecimal
@@ -78,9 +80,18 @@ class RegPC (Register):
 				case "C": general.asm.append("sec;" if op else "clc;")
 				case _: raise ValueError(f"Cannot {"set" if op else "clear"} {x} flag. Operation not supported.")
 			return
+		super().__setattr__(x, op)
 	def push(self): pass
 	def pull(self): pass
 PC = RegPC()
+
+class RegDP (Register):
+	def __init__(self): super().__init__("DP")
+	def __setattr__(self, x, op):
+		super().__setattr__(x, op)
+	def push(self): pass
+	def pull(self): pass
+DP = RegDP()
 
 class RegA (Register):
 	def __init__(self): super().__init__("A")
@@ -91,6 +102,7 @@ class RegA (Register):
 				match op.name:
 					case "X": general.asm.append("txa;")
 					case "Y": general.asm.append("tya;")
+		super().__setattr__(x, op)
 	def push(self): general.asm.append("pha;")
 	def pull(self): general.asm.append("pla;")
 	
@@ -117,27 +129,27 @@ class RegA (Register):
 		'''
 	
 	def __radd__(self, val): pass
-	def __iadd__(self, val): pass
+	def __iadd__(self, val): return self
 	def __sub__(self, val): pass
 	def __rsub__(self, val): pass
-	def __isub__(self, val): pass
+	def __isub__(self, val): return self
 	
 	def __and__(self, val): pass
 	def __rand__(self, val): pass
-	def __iand__(self, val): pass
+	def __iand__(self, val): return self
 	def __or__(self, val): pass
 	def __ror__(self, val): pass
-	def __ior__(self, val): pass
+	def __ior__(self, val): return self
 	def __xor__(self, val): pass
 	def __rxor__(self, val): pass
-	def __ixor__(self, val): pass
+	def __ixor__(self, val): return self
 	
 	def __rshift__(self, val): pass
 	def __rrshift__(self, val): pass
-	def __irshift__(self, val): pass
+	def __irshift__(self, val): return self
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): pass
+	def __ilshift__(self, val): return self
 	
 	def __eq__(self, val): pass
 	def __ne__(self, val): pass
@@ -157,32 +169,33 @@ class RegX (Register):
 					case "A": general.asm.append("tax;")
 					case "Y": general.asm.append("tyx;")
 					case "S": general.asm.append("tsx;")
+		super().__setattr__(x, op)
 	def push(self): general.asm.append("phx;")
 	def pull(self): general.asm.append("plx;")
 	
 	def __add__(self, val): pass
 	def __radd__(self, val): pass
-	def __iadd__(self, val): pass
+	def __iadd__(self, val): return self
 	def __sub__(self, val): pass
 	def __rsub__(self, val): pass
-	def __isub__(self, val): pass
+	def __isub__(self, val): return self
 	
 	def __and__(self, val): pass
 	def __rand__(self, val): pass
-	def __iand__(self, val): pass
+	def __iand__(self, val): return self
 	def __or__(self, val): pass
 	def __ror__(self, val): pass
-	def __ior__(self, val): pass
+	def __ior__(self, val): return self
 	def __xor__(self, val): pass
 	def __rxor__(self, val): pass
-	def __ixor__(self, val): pass
+	def __ixor__(self, val): return self
 	
 	def __rshift__(self, val): pass
 	def __rrshift__(self, val): pass
-	def __irshift__(self, val): pass
+	def __irshift__(self, val): return self
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): pass
+	def __ilshift__(self, val): return self
 	
 	def __eq__(self, val): pass
 	def __ne__(self, val): pass
@@ -201,32 +214,33 @@ class RegY (Register):
 				match op.name:
 					case "A": general.asm.append("tay;")
 					case "X": general.asm.append("txy;")
+		super().__setattr__(x, op)
 	def push(self): general.asm.append("phy;")
 	def pull(self): general.asm.append("ply;")
 	
 	def __add__(self, val): pass
 	def __radd__(self, val): pass
-	def __iadd__(self, val): pass
+	def __iadd__(self, val): return self
 	def __sub__(self, val): pass
 	def __rsub__(self, val): pass
-	def __isub__(self, val): pass
+	def __isub__(self, val): return self
 	
 	def __and__(self, val): pass
 	def __rand__(self, val): pass
-	def __iand__(self, val): pass
+	def __iand__(self, val): return self
 	def __or__(self, val): pass
 	def __ror__(self, val): pass
-	def __ior__(self, val): pass
+	def __ior__(self, val): return self
 	def __xor__(self, val): pass
 	def __rxor__(self, val): pass
-	def __ixor__(self, val): pass
+	def __ixor__(self, val): return self
 	
 	def __rshift__(self, val): pass
 	def __rrshift__(self, val): pass
-	def __irshift__(self, val): pass
+	def __irshift__(self, val): return self
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): pass
+	def __ilshift__(self, val): return self
 	
 	def __eq__(self, val): pass
 	def __ne__(self, val): pass
@@ -248,27 +262,27 @@ class StoredValue (general.ValueHook):
 	
 	def __add__(self, val): pass
 	def __radd__(self, val): pass
-	def __iadd__(self, val): pass
+	def __iadd__(self, val): return self
 	def __sub__(self, val): pass
 	def __rsub__(self, val): pass
-	def __isub__(self, val): pass
+	def __isub__(self, val): return self
 	
 	def __and__(self, val): pass
 	def __rand__(self, val): pass
-	def __iand__(self, val): pass
+	def __iand__(self, val): return self
 	def __or__(self, val): pass
 	def __ror__(self, val): pass
-	def __ior__(self, val): pass
+	def __ior__(self, val): return self
 	def __xor__(self, val): pass
 	def __rxor__(self, val): pass
-	def __ixor__(self, val): pass
+	def __ixor__(self, val): return self
 	
 	def __rshift__(self, val): pass
 	def __rrshift__(self, val): pass
-	def __irshift__(self, val): pass
+	def __irshift__(self, val): return self
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): pass
+	def __ilshift__(self, val): return self
 	
 	def __neg__(self): pass
 	def __pos__(self): pass
@@ -373,25 +387,25 @@ class AddressingMode:
 	
 	def __add__(self, val): pass
 	def __radd__(self, val): pass
-	def __iadd__(self, val): pass
+	def __iadd__(self, val): return self
 	def __sub__(self, val): pass
 	def __rsub__(self, val): pass
-	def __isub__(self, val): pass
+	def __isub__(self, val): return self
 	def __and__(self, val): pass
 	def __rand__(self, val): pass
-	def __iand__(self, val): pass
+	def __iand__(self, val): return self
 	def __or__(self, val): pass
 	def __ror__(self, val): pass
-	def __ior__(self, val): pass
+	def __ior__(self, val): return self
 	def __xor__(self, val): pass
 	def __rxor__(self, val): pass
-	def __ixor__(self, val): pass
+	def __ixor__(self, val): return self
 	def __rshift__(self, val): pass
 	def __rrshift__(self, val): pass
-	def __irshift__(self, val): pass
+	def __irshift__(self, val): return self
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): pass
+	def __ilshift__(self, val): return self
 	def __neg__(self): pass
 	def __pos__(self): pass
 	def __invert__(self): pass
