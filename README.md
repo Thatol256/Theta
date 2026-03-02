@@ -11,6 +11,7 @@ Theta is a programming language that will easily allow you to generate Assembly 
 ## Current Progress
 - The Pre-processor is, to my knowledge, mostly complete, although there is definitely minimal error checking.
 - The framework of the provided Assembly module (asm_65816.py) is mostly complete, however has minimal Assembly generation.
+- At the moment, the script does not produce any output files, and the only way to run the script is to have a file named "test.tha" in the same directory.
 
 ## WARNINGS:
 - These scripts can easily be modified to become malware, so only run versions of this project or Assembly modules you trust!
