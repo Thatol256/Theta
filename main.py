@@ -13,20 +13,29 @@ HEADER_CODE = (
 
 KEYWORD_FUNCTIONS = ["return"]
 
+def printBar(): print("="*50)
 thrown = False
 def throw(area, e):
 	global thrown
 	if not thrown:
 		thrown = True
-		print("="*50)
+		printBar()
 		print(f"{area.upper()} ECOUNTERED AN UN-CAUGHT ERROR:")
-		print("="*50)
+		printBar()
 		print(e)
-		print("="*50)
+		printBar()
 		traceback.print_exc()
-		print("="*50)
+		printBar()
 		input()
 		raise Exception()
+def catch(area, mess):
+	printBar()
+	print(f"{area.upper()} CAUGHT AN ERROR:")
+	printBar()
+	print(mess)
+	printBar()
+	input()
+	raise Exception()
 
 try:
 	file = tfs.read("./test.tha")
@@ -76,11 +85,11 @@ try:
 		vType = vMat.group(1)
 		typeCheck = vType if not "<" in vType else vType[:vType.index("<")]
 		if not typeCheck in DATATYPES: continue
-		vType = vType.replace("<", "(").replace(">", ")")
 		vName = vMat.group(2)
+		vType = vType.replace("<", f"(\"{vName}\", ").replace(">", ")")
 		vContent = vMat.group(3)
 		VARIABLES.update({vName: vType})
-		vDecBuffers.append(f"{vName} = {vType}" + ("" if vContent==None else (f"\\n{vName}.value = {vContent}")))
+		vDecBuffers.append(f"{vName} = {vType}\ngeneral.VARIABLES.append({vName})" + ("" if vContent==None else (f"\\n{vName}.value = {vContent}")))
 		if vContent != None: file = file.replace(v, f"{v}\n{vName} = {vType}")
 	
 	# REPLACE SCOPES
@@ -120,9 +129,11 @@ try:
 		aAssign = aMat.group(2)
 		aRight = " ".join(aMat.group(3).strip().split(" "))
 		# TODO: check if aRight contains embedded statements (e.g. A = B == C, A = !B > C)
-		if not aLeft in list(VARIABLES.keys()) + REGISTERS:
+		if not aLeft in list(VARIABLES.keys()) + REGISTERS: # indirect assignment (VAR1 + X = VAR2 -> LBL = VAR1 + X; LBL = VAR2 )
 			aLId = general.genId()
-			aLeft = f"{aLId} {aAssign} AddressingMode(\"{aLeft}\")\n{aLId}"
+			aLeft = f"{aLId} {aAssign} AddressingMode(\"{aLeft}\")\n{aLId}.value"
+		elif aAssign == "=": # variable/register assignment
+			aLeft = f"{aLeft}.value"
 		if not (aRight in REGISTERS):
 			aRight = f"AddressingMode(\"{aRight}\")"
 		file = file.replace(a, f"{aLeft} {aAssign} {aRight}", 1)
@@ -148,7 +159,7 @@ try:
 	# REPLACE LABELS
 	for l in re.findall(r" *\w[\w\d]* *:", file):
 		lName = re.search(r" *(\w[\w\d]*) *:", l).group(1)
-		file = re.sub(l, f"{lName} = general.Label(\"{lName}\")", file)
+		file = re.sub(l, f"{lName} = general.Label(\"{lName}\")\ngeneral.LABELS.append({lName})", file)
 	
 	file = "\n".join([importFiles, file])
 	
@@ -156,4 +167,5 @@ try:
 	try: exec(file)
 	except Exception as e: throw("ASSEMBLY MODULE", e)
 	#input(general.asm)
+	input("TRANSLATION COMPLETE.")
 except Exception as e: throw("PRE-PROCESSOR", e)

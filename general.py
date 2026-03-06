@@ -2,6 +2,9 @@ import datetime
 
 asm = []
 
+VARIABLES = []
+LABELS = []
+
 #YYYYYYYY YYYYYYYY YYMMMMDD DDDHHHHH NNNNNNSS SSSSCCCC CCCCCCCC CCCCCCCC
 def genId():
 	now = datetime.datetime.now()
@@ -11,7 +14,8 @@ def genId():
 	return "ID_"+res
 
 class ValueHook:
-	def __init__(self, adr, wid, sig):
+	def __init__(self, nam, adr, wid, sig):
+		self.name = nam
 		self.address = adr
 		self.width = wid
 		self.sign = sig
@@ -19,9 +23,9 @@ class ValueHook:
 	def replaceSymbol(syntax): return "0x"+hex(self.address)[2:]
 
 class PointerHook (ValueHook):
-	def __init__(self, adr, sval):
+	def __init__(self, nam, adr, sval):
 		wid = (math.floor(math.log2(adr)) if adr > 1 else 1) // 8
-		super().__init__(adr, wid, False)
+		super().__init__(nam, adr, wid, False)
 		self.reference = sval #the value the pointer points to
 	def __len__(self): return self.wid
 
