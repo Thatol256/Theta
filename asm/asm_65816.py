@@ -6,6 +6,7 @@ def asm(op):
 		if o != "": general.asm.append(o.strip())
 def wait(): asm("wai;")
 def nop(): asm("nop;")
+def stop(): asm("stp;")
 
 DATATYPES = ["ubyte", "ushort", "uint", "sbyte", "sshort", "sint", "vector", "pointer", "array"]
 REGISTERS = ["A", "X", "Y", "PC"]
@@ -38,26 +39,26 @@ MODE_STACK_RELATIVE_INDIRECT_Y = 19
 
 # "#" means this is an address, "&" means the value at that address
 ADDRESSING_MODES = [
-	{ "name": "immediate",                 "match": f"({RE_INT})",                      "swap": "1",       "maximumSize": 2 },
-	{ "name": "relative",                  "match": fr"PC([\+\-]{RE_UINT})",            "swap": "1",       "maximumSize": 1 },
-	{ "name": "direct",                    "match": f"#({RE_UINT})",                    "swap": "1",       "maximumSize": 1 },
-	{ "name": "direct indirect",           "match": f"&2:#({RE_UINT})",                 "swap": "(1)",     "maximumSize": 1 },
-	{ "name": "direct indirect long",      "match": f"&3:#({RE_UINT})",                 "swap": "[1]",     "maximumSize": 1 },
-	{ "name": "direct x",                  "match": fr"#({RE_UINT})\+X",                "swap": "1,x",     "maximumSize": 1 },
-	{ "name": "direct y",                  "match": fr"#({RE_UINT})\+Y",                "swap": "1,y",     "maximumSize": 1 },
-	{ "name": "direct indirect x",         "match": fr"&2:\(#({RE_UINT})\+X\)",         "swap": "(1,x)",   "maximumSize": 1 },
-	{ "name": "direct indirect y",         "match": fr"&2:\(#({RE_UINT})\)\+Y",         "swap": "(1),y",   "maximumSize": 1 },
-	{ "name": "direct indirect long y",    "match": fr"&3:\(#({RE_UINT})\)\+Y",         "swap": "[1],y",   "maximumSize": 1 },
-	{ "name": "absolute",                  "match": f"#({RE_UINT})",                    "swap": "1",       "maximumSize": 2 },
-	{ "name": "absolute x",                "match": fr"#({RE_UINT})\+X",                "swap": "1,x",     "maximumSize": 2 },
-	{ "name": "absolute y",                "match": fr"#({RE_UINT})\+Y",                "swap": "1,y",     "maximumSize": 2 },
-	{ "name": "absolute long",             "match": f"#({RE_UINT})",                    "swap": "1",       "maximumSize": 3 },
-	{ "name": "absolute long x",           "match": fr"#({RE_UINT})\+X",                "swap": "1,x",     "maximumSize": 3 },
-	{ "name": "absolute indirect",         "match": f"&2:#({RE_UINT})",                 "swap": "(1)",     "maximumSize": 2 },
-	{ "name": "absolute indirect long",    "match": f"&3:#({RE_UINT})",                 "swap": "[1]",     "maximumSize": 2 },
-	{ "name": "absolute indirect x",       "match": fr"&2:\(#({RE_UINT})\+X\)",         "swap": "(1,x)",   "maximumSize": 2 },
-	{ "name": "stack relative",            "match": fr"([\+\-]{RE_UINT})\+S",           "swap": "1,s",     "maximumSize": 1 },
-	{ "name": "stack relative indirect y", "match": fr"&2:\(([\+\-]{RE_UINT})\+S\)\+Y", "swap": "(1,s),y", "maximumSize": 1 }
+	{ "name": "immediate",                 "match": f"({RE_INT})",                      "swap": "#1",       "maximumSize": 2 },
+	{ "name": "relative",                  "match": fr"PC([\+\-]{RE_UINT})",            "swap": "#1",       "maximumSize": 1 },
+	{ "name": "direct",                    "match": f"#({RE_UINT})",                    "swap": "1",        "maximumSize": 1 },
+	{ "name": "direct indirect",           "match": f"&2:#({RE_UINT})",                 "swap": "(1)",      "maximumSize": 1 },
+	{ "name": "direct indirect long",      "match": f"&3:#({RE_UINT})",                 "swap": "[1]",      "maximumSize": 1 },
+	{ "name": "direct x",                  "match": fr"#({RE_UINT})\+X",                "swap": "1,x",      "maximumSize": 1 },
+	{ "name": "direct y",                  "match": fr"#({RE_UINT})\+Y",                "swap": "1,y",      "maximumSize": 1 },
+	{ "name": "direct indirect x",         "match": fr"&2:\(#({RE_UINT})\+X\)",         "swap": "(1,x)",    "maximumSize": 1 },
+	{ "name": "direct indirect y",         "match": fr"&2:\(#({RE_UINT})\)\+Y",         "swap": "(1),y",    "maximumSize": 1 },
+	{ "name": "direct indirect long y",    "match": fr"&3:\(#({RE_UINT})\)\+Y",         "swap": "[1],y",    "maximumSize": 1 },
+	{ "name": "absolute",                  "match": f"#({RE_UINT})",                    "swap": "1",        "maximumSize": 2 },
+	{ "name": "absolute x",                "match": fr"#({RE_UINT})\+X",                "swap": "1,x",      "maximumSize": 2 },
+	{ "name": "absolute y",                "match": fr"#({RE_UINT})\+Y",                "swap": "1,y",      "maximumSize": 2 },
+	{ "name": "absolute long",             "match": f"#({RE_UINT})",                    "swap": "1",        "maximumSize": 3 },
+	{ "name": "absolute long x",           "match": fr"#({RE_UINT})\+X",                "swap": "1,x",      "maximumSize": 3 },
+	{ "name": "absolute indirect",         "match": f"&2:#({RE_UINT})",                 "swap": "(1)",      "maximumSize": 2 },
+	{ "name": "absolute indirect long",    "match": f"&3:#({RE_UINT})",                 "swap": "[1]",      "maximumSize": 2 },
+	{ "name": "absolute indirect x",       "match": fr"&2:\(#({RE_UINT})\+X\)",         "swap": "(1,x)",    "maximumSize": 2 },
+	{ "name": "stack relative",            "match": fr"([\+\-]{RE_UINT})\+S",           "swap": "#1,s",     "maximumSize": 1 },
+	{ "name": "stack relative indirect y", "match": fr"&2:\(([\+\-]{RE_UINT})\+S\)\+Y", "swap": "(#1,s),y", "maximumSize": 1 }
 ]
 
 # also normalizes arg to hex
@@ -124,11 +125,6 @@ PTR -> #PTR.address
 &(*PTR + X) -> &PTR.reference.width:(PTR.address + X)
 
 INSTRUCTIONS LEFT:
-ASL dp 		Arithmetic Shift Left 	06 	Direct Page 	N-----ZC 	2 	5[2][4]
-ASL A 		Arithmetic Shift Left 	0A 	Accumulator 	N-----ZC 	1 	2
-ASL addr 		Arithmetic Shift Left 	0E 	Absolute 	N-----ZC 	3 	6[4]
-ASL dp,X 		Arithmetic Shift Left 	16 	DP Indexed,X 	N-----ZC 	2 	6[2][4]
-ASL addr,X 		Arithmetic Shift Left 	1E 	Absolute Indexed,X 	N-----ZC 	3 	7[4]
 BCC nearlabel 	BLT 	Branch if Carry Clear 	90 	Program Counter Relative 		2 	2[5][6]
 BCS nearlabel 	BGE 	Branch if Carry Set 	B0 	Program Counter Relative 		2 	2[5][6]
 BEQ nearlabel 		Branch if Equal 	F0 	Program Counter Relative 		2 	2[5][6]
@@ -145,38 +141,7 @@ BRK 		Break 	00 	Stack/Interrupt 	----DI-- 	2[13] 	7[7]
 BRL label 		Branch Long Always 	82 	Program Counter Relative Long 		3 	4
 BVC nearlabel 		Branch if Overflow Clear 	50 	Program Counter Relative 		2 	2[5][6]
 BVS nearlabel 		Branch if Overflow Set 	70 	Program Counter Relative 		2 	2[5][6]
-CMP (dp,X) 		Compare Accumulator with Memory 	C1 	DP Indexed Indirect,X 	N-----ZC 	2 	6[1][2]
-CMP sr,S 		Compare Accumulator with Memory 	C3 	Stack Relative 	N-----ZC 	2 	4[1]
-CMP dp 		Compare Accumulator with Memory 	C5 	Direct Page 	N-----ZC 	2 	3[1][2]
-CMP [dp] 		Compare Accumulator with Memory 	C7 	DP Indirect Long 	N-----ZC 	2 	6[1][2]
-CMP #const 		Compare Accumulator with Memory 	C9 	Immediate 	N-----ZC 	2[12] 	2[1]
-CMP addr 		Compare Accumulator with Memory 	CD 	Absolute 	N-----ZC 	3 	4[1]
-CMP long 		Compare Accumulator with Memory 	CF 	Absolute Long 	N-----ZC 	4 	5[1]
-CMP (dp),Y 		Compare Accumulator with Memory 	D1 	DP Indirect Indexed, Y 	N-----ZC 	2 	5[1][2][3]
-CMP (dp) 		Compare Accumulator with Memory 	D2 	DP Indirect 	N-----ZC 	2 	5[1][2]
-CMP (sr,S),Y 		Compare Accumulator with Memory 	D3 	SR Indirect Indexed,Y 	N-----ZC 	2 	7[1]
-CMP dp,X 		Compare Accumulator with Memory 	D5 	DP Indexed,X 	N-----ZC 	2 	4[1][2]
-CMP [dp],Y 		Compare Accumulator with Memory 	D7 	DP Indirect Long Indexed, Y 	N-----ZC 	2 	6[1][2]
-CMP addr,Y 		Compare Accumulator with Memory 	D9 	Absolute Indexed,Y 	N-----ZC 	3 	4[1][3]
-CMP addr,X 		Compare Accumulator with Memory 	DD 	Absolute Indexed,X 	N-----ZC 	3 	4[1][3]
-CMP long,X 		Compare Accumulator with Memory 	DF 	Absolute Long Indexed,X 	N-----ZC 	4 	5[1]
 COP #const 		Co-Processor 	02 	Stack/Interrupt 	----DI-- 	2[13] 	7[7]
-CPX #const 		Compare Index Register X with Memory 	E0 	Immediate 	N-----ZC 	2[14] 	2[8]
-CPX dp 		Compare Index Register X with Memory 	E4 	Direct Page 	N-----ZC 	2 	3[2][8]
-CPX addr 		Compare Index Register X with Memory 	EC 	Absolute 	N-----ZC 	3 	4[8]
-CPY #const 		Compare Index Register Y with Memory 	C0 	Immediate 	N-----ZC 	2[14] 	2[8]
-CPY dp 		Compare Index Register Y with Memory 	C4 	Direct Page 	N-----ZC 	2 	3[2][8]
-CPY addr 		Compare Index Register Y with Memory 	CC 	Absolute 	N-----ZC 	3 	4[8]
-DEC A 	DEA 	Decrement 	3A 	Accumulator 	N-----Z- 	1 	2
-DEC dp 		Decrement 	C6 	Direct Page 	N-----Z- 	2 	5[2][4]
-DEC addr 		Decrement 	CE 	Absolute 	N-----Z- 	3 	6[4]
-DEC dp,X 		Decrement 	D6 	DP Indexed,X 	N-----Z- 	2 	6[2][4]
-DEC addr,X 		Decrement 	DE 	Absolute Indexed,X 	N-----Z- 	3 	7[4]
-INC A 	INA 	Increment 	1A 	Accumulator 	N-----Z- 	1 	2
-INC dp 		Increment 	E6 	Direct Page 	N-----Z- 	2 	5[2][4]
-INC addr 		Increment 	EE 	Absolute 	N-----Z- 	3 	6[4]
-INC dp,X 		Increment 	F6 	DP Indexed,X 	N-----Z- 	2 	6[2][4]
-INC addr,X 		Increment 	FE 	Absolute Indexed,X 	N-----Z- 	3 	7[4]
 JMP addr 		Jump 	4C 	Absolute 		3 	3
 JMP long 	JML 	Jump 	5C 	Absolute Long 		4 	4
 JMP (addr) 		Jump 	6C 	Absolute Indirect 		3 	5
@@ -185,73 +150,19 @@ JMP [addr] 	JML 	Jump 	DC 	Absolute Indirect Long 		3 	6
 JSR addr 		Jump to Subroutine 	20 	Absolute 		3 	6
 JSR long 	JSL 	Jump to Subroutine 	22 	Absolute Long 		4 	8
 JSR (addr,X)) 		Jump to Subroutine 	FC 	Absolute Indexed Indirect 		3 	8
-LDX #const 		Load Index Register X from Memory 	A2 	Immediate 	N-----Z- 	2[14] 	2[8]
-LDX dp 		Load Index Register X from Memory 	A6 	Direct Page 	N-----Z- 	2 	3[2][8]
-LDX addr 		Load Index Register X from Memory 	AE 	Absolute 	N-----Z- 	3 	4[8]
-LDX dp,Y 		Load Index Register X from Memory 	B6 	DP Indexed,Y 	N-----Z- 	2 	4[2][8]
-LDX addr,Y 		Load Index Register X from Memory 	BE 	Absolute Indexed,Y 	N-----Z- 	3 	4[3][8]
-LDY #const 		Load Index Register Y from Memory 	A0 	Immediate 	N-----Z- 	2[14] 	2[8]
-LDY dp 		Load Index Register Y from Memory 	A4 	Direct Page 	N-----Z- 	2 	3[2][8]
-LDY addr 		Load Index Register Y from Memory 	AC 	Absolute 	N-----Z- 	3 	4[8]
-LDY dp,X 		Load Index Register Y from Memory 	B4 	DP Indexed,X 	N-----Z- 	2 	4[2][8]
-LDY addr,X 		Load Index Register Y from Memory 	BC 	Absolute Indexed,X 	N-----Z- 	3 	4[3][8]
-LSR dp 		Logical Shift Memory or Accumulator Right 	46 	Direct Page 	N-----ZC 	2 	5[2][4]
-LSR A 		Logical Shift Memory or Accumulator Right 	4A 	Accumulator 	N-----ZC 	1 	2
-LSR addr 		Logical Shift Memory or Accumulator Right 	4E 	Absolute 	N-----ZC 	3 	6[4]
-LSR dp,X 		Logical Shift Memory or Accumulator Right 	56 	DP Indexed,X 	N-----ZC 	2 	6[2][4]
-LSR addr,X 		Logical Shift Memory or Accumulator Right 	5E 	Absolute Indexed,X 	N-----ZC 	3 	7[4]
 MVN srcbk,destbk 		Block Move Negative 	54 	Block Move 		3 	1[3]
 MVP srcbk,destbk 		Block Move Positive 	44 	Block Move 		3 	1[3]
 PEA addr 		Push Effective Absolute Address 	F4 	Stack (Absolute) 		3 	5
 PEI (dp) 		Push Effective Indirect Address 	D4 	Stack (DP Indirect) 		2 	6[2]
 PER label 		Push Effective PC Relative Indirect Address 	62 	Stack (PC Relative Long) 		3 	6
 PHB 		Push Data Bank Register 	8B 	Stack (Push) 		1 	3
-PHD 		Push Direct Page Register 	0B 	Stack (Push) 		1 	4
 PHK 		Push Program Bank Register 	4B 	Stack (Push) 		1 	3
-PHP 		Push Processor Status Register 	08 	Stack (Push) 		1 	3
 PLB 		Pull Data Bank Register 	AB 	Stack (Pull) 	N-----Z- 	1 	4
-PLD 		Pull Direct Page Register 	2B 	Stack (Pull) 	N-----Z- 	1 	5
-PLP 		Pull Processor Status Register 	28 	Stack (Pull) 	NVMXDIZC 	1 	4
 REP #const 		Reset Processor Status Bits 	C2 	Immediate 	NVMXDIZC 	2 	3
-ROL dp 		Rotate Memory or Accumulator Left 	26 	Direct Page 	N-----ZC 	2 	5[2][4]
-ROL A 		Rotate Memory or Accumulator Left 	2A 	Accumulator 	N-----ZC 	1 	2
-ROL addr 		Rotate Memory or Accumulator Left 	2E 	Absolute 	N-----ZC 	3 	6[4]
-ROL dp,X 		Rotate Memory or Accumulator Left 	36 	DP Indexed,X 	N-----ZC 	2 	6[2][4]
-ROL addr,X 		Rotate Memory or Accumulator Left 	3E 	Absolute Indexed,X 	N-----ZC 	3 	7[4]
-ROR dp 		Rotate Memory or Accumulator Right 	66 	Direct Page 	N-----ZC 	2 	5[2][4]
-ROR A 		Rotate Memory or Accumulator Right 	6A 	Accumulator 	N-----ZC 	1 	2
-ROR addr 		Rotate Memory or Accumulator Right 	6E 	Absolute 	N-----ZC 	3 	6[4]
-ROR dp,X 		Rotate Memory or Accumulator Right 	76 	DP Indexed,X 	N-----ZC 	2 	6[2][4]
-ROR addr,X 		Rotate Memory or Accumulator Right 	7E 	Absolute Indexed,X 	N-----ZC 	3 	7[4]
 RTI 		Return from Interrupt 	40 	Stack (RTI) 	NVMXDIZC 	1 	6[7]
 RTL 		Return from Subroutine Long 	6B 	Stack (RTL) 		1 	6
 RTS 		Return from Subroutine 	60 	Stack (RTS) 		1 	6
 SEP #const 		Set Processor Status Bits 	E2 	Immediate 	NVMXDIZC 	2 	3
-STA (dp,X) 		Store Accumulator to Memory 	81 	DP Indexed Indirect,X 		2 	6[1][2]
-STA sr,S 		Store Accumulator to Memory 	83 	Stack Relative 		2 	4[1]
-STA dp 		Store Accumulator to Memory 	85 	Direct Page 		2 	3[1][2]
-STA [dp] 		Store Accumulator to Memory 	87 	DP Indirect Long 		2 	6[1][2]
-STA addr 		Store Accumulator to Memory 	8D 	Absolute 		3 	4[1]
-STA long 		Store Accumulator to Memory 	8F 	Absolute Long 		4 	5[1]
-STA (dp),Y 		Store Accumulator to Memory 	91 	DP Indirect Indexed, Y 		2 	6[1][2]
-STA (dp) 		Store Accumulator to Memory 	92 	DP Indirect 		2 	5[1][2]
-STA (sr,S),Y 		Store Accumulator to Memory 	93 	SR Indirect Indexed,Y 		2 	7[1]
-STA _dp_X 		Store Accumulator to Memory 	95 	DP Indexed,X 		2 	4[1][2]
-STA [dp],Y 		Store Accumulator to Memory 	97 	DP Indirect Long Indexed, Y 		2 	6[1][2]
-STA addr,Y 		Store Accumulator to Memory 	99 	Absolute Indexed,Y 		3 	5[1]
-STA addr,X 		Store Accumulator to Memory 	9D 	Absolute Indexed,X 		3 	5[1]
-STA long,X 		Store Accumulator to Memory 	9F 	Absolute Long Indexed,X 		4 	5[1]
-STP 		Stop Processor 	DB 	Implied 		1 	3[9]
-STX dp 		Store Index Register X to Memory 	86 	Direct Page 		2 	3[2][8]
-STX addr 		Store Index Register X to Memory 	8E 	Absolute 		3 	4[8]
-STX dp,Y 		Store Index Register X to Memory 	96 	DP Indexed,Y 		2 	4[2][8]
-STY dp 		Store Index Register Y to Memory 	84 	Direct Page 		2 	3[2][8]
-STY addr 		Store Index Register Y to Memory 	8C 	Absolute 		3 	4[8]
-STY dp,X 		Store Index Register Y to Memory 	94 	DP Indexed,X 		2 	4[2][8]
-STZ dp 		Store Zero to Memory 	64 	Direct Page 		2 	3[1][2]
-STZ dp,X 		Store Zero to Memory 	74 	DP Indexed,X 		2 	4[1][2]
-STZ addr 		Store Zero to Memory 	9C 	Absolute 		3 	4[1]
-STZ addr,X 		Store Zero to Memory 	9E 	Absolute Indexed,X 		3 	5[1]
 TCD 		Transfer 16-bit Accumulator to Direct Page Register 	5B 	Implied 	N-----Z- 	1 	2
 TCS 		Transfer 16-bit Accumulator to Stack Pointer 	1B 	Implied 		1 	2
 TDC 		Transfer Direct Page Register to 16-bit Accumulator 	7B 	Implied 	N-----Z- 	1 	2
@@ -261,7 +172,6 @@ TSB dp 		Test and Set Memory Bits Against Accumulator 	04 	Direct Page 	------Z-
 TSB addr 		Test and Set Memory Bits Against Accumulator 	0C 	Absolute 	------Z- 	3 	6[4]
 TSC 		Transfer Stack Pointer to 16-bit Accumulator 	3B 	Implied 	N-----Z- 	1 	2
 TXS 		Transfer Index Register X to Stack Pointer 	9A 	Implied 		1 	2
-WAI 		Wait for Interrupt 	CB 	Implied 		1 	3[10]
 WDM 		Reserved for Future Expansion 	42 			2 	0[11]
 XBA 		Exchange B and A 8-bit Accumulators 	EB 	Implied 	N-----Z- 	1 	3
 XCE 		Exchange Carry and Emulation Flags 	FB 	Implied 	--MX---CE 	1 	2
@@ -295,25 +205,30 @@ class Register:
 class RegPC (Register):
 	def __init__(self): super().__init__("PC")
 	def __setattr__(self, x, op):
-		if isinstance(op, bool) and x in ["N", "V", "M", "X", "D", "I", "Z", "C", "E", "B"]:
+		xIsFlag = x in ["N", "V", "M", "X", "D", "I", "Z", "C", "E", "B"]
+		legalIB = isinstance(op, bool) or (isinstance(op, int) and op in [0, 1])
+		legalAdsm = type(op).__name__ == "AddressingMode" and op.resolvedText in ["True", "False", "$0", "$1"]
+		if (legalIB or legalAdsm) and xIsFlag:
+			if legalAdsm: op = op.resolvedText in ["True", "$1"]
+			if legalIB: op = op in [True, 1]
 			match x:
-				case "V" if not op: general.asm.append("clv;")
-				case "D": general.asm.append("sed;" if op else "cld;")
-				case "I": general.asm.append("sei;" if op else "cli;")
-				case "C": general.asm.append("sec;" if op else "clc;")
+				case "V" if not op: asm("clv;")
+				case "D": asm("sed;" if op else "cld;")
+				case "I": asm("sei;" if op else "cli;")
+				case "C": asm("sec;" if op else "clc;")
 				case _: raise ValueError(f"Cannot {"set" if op else "clear"} {x} flag. Operation not supported.")
 			return
 		super().__setattr__(x, op)
-	def push(self): pass
-	def pull(self): pass
+	def push(self): asm("php;")
+	def pull(self): asm("plp;")
 PC = RegPC()
 
 class RegDP (Register):
 	def __init__(self): super().__init__("DP")
 	def __setattr__(self, x, op):
 		super().__setattr__(x, op)
-	def push(self): pass
-	def pull(self): pass
+	def push(self): asm("phd;")
+	def pull(self): asm("pld;")
 DP = RegDP()
 
 class RegA (Register):
@@ -325,6 +240,7 @@ class RegA (Register):
 				match op.name:
 					case "X": general.asm.append("txa;")
 					case "Y": general.asm.append("tya;")
+			elif isinstance(op, int): asm(f"lda #${hex(op)[2:]}")
 			elif isinstance(op, AddressingMode):
 				acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
 				MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
@@ -339,7 +255,7 @@ class RegA (Register):
 	def __radd__(self, val): pass
 	def __iadd__(self, val):
 		if isinstance(val, int):
-			asm("inc a;" if val==1 else f"adc #{val};")
+			asm("inc a;" if val==1 else f"adc #${hex(val)[2:]};")
 		if isinstance(val, AddressingMode):
 			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
 			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
@@ -354,7 +270,7 @@ class RegA (Register):
 	def __rsub__(self, val): pass
 	def __isub__(self, val):
 		if isinstance(val, int):
-			asm("dec a;" if val==1 else f"sbc #{val};")
+			asm("dec a;" if val==1 else f"sbc #${hex(val)[2:]};")
 		elif isinstance(val, AddressingMode):
 			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
 			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
@@ -368,7 +284,7 @@ class RegA (Register):
 	def __and__(self, val): pass
 	def __rand__(self, val): pass
 	def __iand__(self, val):
-		if isinstance(val, int): asm(f"and #{val};")
+		if isinstance(val, int): asm(f"and #${hex(val)[2:]};")
 		elif isinstance(val, AddressingMode):
 			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
 			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
@@ -382,7 +298,7 @@ class RegA (Register):
 	def __or__(self, val): pass
 	def __ror__(self, val): pass
 	def __ior__(self, val):
-		if isinstance(val, int): asm(f"oro #{val};")
+		if isinstance(val, int): asm(f"oro #${hex(val)[2:]};")
 		elif isinstance(val, AddressingMode):
 			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
 			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
@@ -396,7 +312,7 @@ class RegA (Register):
 	def __xor__(self, val): pass
 	def __rxor__(self, val): pass
 	def __ixor__(self, val):
-		if isinstance(val, int): asm(f"eor #{val};")
+		if isinstance(val, int): asm(f"eor #${hex(val)[2:]};")
 		elif isinstance(val, AddressingMode):
 			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
 			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
@@ -407,12 +323,43 @@ class RegA (Register):
 			else: catch("REGA.__IXOR__()", f"Unaccepted addressing mode ({str(val)}).")
 		return self
 	
+	def shiftLeft(self, val):
+		if isinstance(val, int): asm(f"asl a;"*val)
+		elif isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: asm(f"asl #{val.swap};"*int(val.swap[1:],16))
+		else: catch("REGA.SHIFTLEFT()", f"Unaccepted value ({str(val)}).")
+	def shiftRight(self, val):
+		if isinstance(val, int): asm(f"lsr a;"*val)
+		elif isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: asm(f"lsr #{val.swap};"*int(val.swap[1:],16))
+		else: catch("REGA.SHIFTRIGHT()", f"Unaccepted value ({str(val)}).")
+	def rotateLeft(self, val):
+		if isinstance(val, int): asm(f"rol a;"*val)
+		elif isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: asm(f"rol #{val.swap};"*int(val.swap[1:],16))
+		else: catch("REGA.ROTATELEFT()", f"Unaccepted value ({str(val)}).")
+	def rotateRight(self, val):
+		if isinstance(val, int): asm(f"ror a;"*val)
+		elif isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: asm(f"ror #{val.swap};"*int(val.swap[1:],16))
+		else: catch("REGA.ROTATERIGHT()", f"Unaccepted value ({str(val)}).")
+	
 	def __rshift__(self, val): pass
 	def __rrshift__(self, val): pass
-	def __irshift__(self, val): return self
+	def __irshift__(self, val):
+		self.shiftRight(val)
+		return self
+	
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): return self
+	def __ilshift__(self, val):
+		self.shiftLeft(val)
+		return self
+	
+	def compare(self, op):
+		if isinstance(op, int): asm(f"cmp #${hex(op)[2:]}")
+		elif isinstance(op, AddressingMode):
+			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
+			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
+			MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
+			if op.mode in acceptedModes: asm(f"cmp {op.swap};")
+			else: catch("REGA.COMPARE()", f"Unaccepted addressing mode ({str(op)}).")
 	
 	def __eq__(self, val): pass
 	def __ne__(self, val): pass
@@ -432,6 +379,11 @@ class RegX (Register):
 					case "A": general.asm.append("tax;")
 					case "Y": general.asm.append("tyx;")
 					case "S": general.asm.append("tsx;")
+			elif isinstance(op, int): asm(f"ldx #${hex(op)[2:]}")
+			elif isinstance(op, AddressingMode):
+				acceptedModes = [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_Y, MODE_ABSOLUTE_Y]
+				if op.mode in acceptedModes: asm(f"ldx {op.swap};")
+				else: catch("REGX.__SETATTR__()", f"Unaccepted addressing mode ({str(op)}).")
 		super().__setattr__(x, op)
 	def push(self): asm("phx;")
 	def pull(self): asm("plx;")
@@ -471,6 +423,13 @@ class RegX (Register):
 	def __rlshift__(self, val): pass
 	def __ilshift__(self, val): return self
 	
+	def compare(self, op):
+		if isinstance(op, int): asm(f"cpx #${hex(op)[2:]}")
+		elif isinstance(op, AddressingMode):
+			acceptedModes = [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE]
+			if op.mode in acceptedModes: asm(f"cpx {op.swap};")
+			else: catch("REGX.COMPARE()", f"Unaccepted addressing mode ({str(op)}).")
+	
 	def __eq__(self, val): pass
 	def __ne__(self, val): pass
 	def __lt__(self, val): pass
@@ -488,6 +447,11 @@ class RegY (Register):
 				match op.name:
 					case "A": general.asm.append("tay;")
 					case "X": general.asm.append("txy;")
+			elif isinstance(op, int): asm(f"ldy #${hex(op)[2:]}")
+			elif isinstance(op, AddressingMode):
+				acceptedModes = [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
+				if op.mode in acceptedModes: asm(f"ldy {op.swap};")
+				else: catch("REGY.__SETATTR__()", f"Unaccepted addressing mode ({str(op)}).")
 		super().__setattr__(x, op)
 	def push(self): asm("phy;")
 	def pull(self): asm("ply;")
@@ -526,6 +490,13 @@ class RegY (Register):
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
 	def __ilshift__(self, val): return self
+	
+	def compare(self, op):
+		if isinstance(op, int): asm(f"cpy #${hex(op)[2:]}")
+		elif isinstance(op, AddressingMode):
+			acceptedModes = [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE]
+			if op.mode in acceptedModes: asm(f"cpy {op.swap};")
+			else: catch("REGY.COMPARE()", f"Unaccepted addressing mode ({str(op)}).")
 	
 	def __eq__(self, val): pass
 	def __ne__(self, val): pass
@@ -580,6 +551,8 @@ class StoredValue (general.ValueHook):
 	def __gt__(self, val): pass
 	def __le__(self, val): pass
 	def __ge__(self, val): pass
+	
+	def assign(self, val, mode, refs): pass
 
 class ubyte (StoredValue):
 	def __init__(self, nam, adr): super().__init__(nam, adr, 1, False)
@@ -667,22 +640,69 @@ class AddressingMode:
 		self.resolvedText = resolveMode(self.unresolvedText)
 		self.mode, self.arg = identifyMode(self.resolvedText)
 		self.swap = modeSyntax(self.mode, self.arg) if (self.mode != None and self.arg != None) else None
-		print(self)
 	def __str__(self): return f"Address mode: {ADDRESSING_MODES[self.mode]["name"].capitalize() if self.mode != None else "None"}, {self.arg}; From {self.unresolvedText} => {self.resolvedText}"
 	def __setattr__(self, x, op):
 		if x == "value":
 			if isinstance(op, Register):
+				acceptedModes = []
+				reg = None
 				match op.name:
-					case "A": pass
-					# STORE OPERATIONS
+					case "A":
+						acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_ABSOLUTE, MODE_ABSOLUTE_LONG,
+						MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y, MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y,
+						MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
+						reg = "A"
+					case "X":
+						acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_Y]
+						reg = "X"
+					case "Y":
+						acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X]
+						reg = "Y"
+				if self.mode in acceptedModes and reg != None: asm(f"st{reg.lower()} {self.swap};")
+				else: catch("ADDRESSINGMODE.__SETATTR__()", f"Unaccepted addressing mode ({str(self)} = {str(op)}).")
+			elif isinstance(op, int) or (isinstance(op, AddressingMode) and op.mode == MODE_IMMEDIATE):
+				if isinstance(op, AddressingMode): op = int(op.arg[1:],16)
+				if op == 0:
+					acceptedModes = [MODE_DIRECT, MODE_DIRECT_X, MODE_ABSOLUTE, MODE_ABSOLUTE_X]
+					if self.mode in acceptedModes: asm(f"stz {self.swap};")
+					else: catch("ADDRESSINGMODE.__SETATTR__()", f"Unaccepted addressing mode ({str(self)} = {str(op)}).")
+				else:
+					A.use()
+					A.value = op
+					self.value = A
+					A.unuse()
 		super().__setattr__(x, op)
 	
 	def __add__(self, val): pass
 	def __radd__(self, val): pass
-	def __iadd__(self, val): return self
+	def __iadd__(self, val):
+		if isinstance(val, int) or isinstance(val, AddressingMode):
+			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
+			if isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: val = int(val.arg[1:],16)
+			if val == 1: asm(f"inc {self.swap};")
+			else:
+				A.use()
+				A.value = self
+				A += val
+				self.value = A
+				A.unuse()
+		return self
+	
 	def __sub__(self, val): pass
 	def __rsub__(self, val): pass
-	def __isub__(self, val): return self
+	def __isub__(self, val):
+		if isinstance(val, int) or isinstance(val, AddressingMode):
+			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
+			if isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: val = int(val.arg[1:],16)
+			if val == 1: asm(f"dec {self.swap};")
+			else:
+				A.use()
+				A.value = self
+				A -= val
+				self.value = A
+				A.unuse()
+		return self
+	
 	def __and__(self, val): pass
 	def __rand__(self, val): pass
 	def __iand__(self, val): return self
@@ -692,12 +712,64 @@ class AddressingMode:
 	def __xor__(self, val): pass
 	def __rxor__(self, val): pass
 	def __ixor__(self, val): return self
+	
+	def shiftLeft(self, val):
+		if isinstance(val, int) or (isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE):
+			if isinstance(val, AddressingMode): val = int(val.arg[1:],16)
+			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
+			if self.mode in acceptedModes: asm(f"asl {self.swap};"*val)
+			else:
+				A.use()
+				A.value = self
+				A.shiftLeft(val)
+				self.value = A
+				A.unuse()
+	def shiftRight(self, val):
+		if isinstance(val, int) or (isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE):
+			if isinstance(val, AddressingMode): val = int(val.arg[1:],16)
+			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
+			if self.mode in acceptedModes: asm(f"asr {self.swap};"*val)
+			else:
+				A.use()
+				A.value = self
+				A.shiftRight(val)
+				self.value = A
+				A.unuse()
+	def rotateLeft(self, val):
+		if isinstance(val, int) or (isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE):
+			if isinstance(val, AddressingMode): val = int(val.arg[1:],16)
+			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
+			if self.mode in acceptedModes: asm(f"rol {self.swap};"*val)
+			else:
+				A.use()
+				A.value = self
+				A.rotateLeft(val)
+				self.value = A
+				A.unuse()
+	def rotateRight(self, val):
+		if isinstance(val, int) or (isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE):
+			if isinstance(val, AddressingMode): val = int(val.arg[1:],16)
+			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
+			if self.mode in acceptedModes: asm(f"ror {self.swap};"*val)
+			else:
+				A.use()
+				A.value = self
+				A.rotateRight(val)
+				self.value = A
+				A.unuse()
+	
 	def __rshift__(self, val): pass
 	def __rrshift__(self, val): pass
-	def __irshift__(self, val): return self
+	def __irshift__(self, val):
+		self.shiftLeft(val)
+		return self
+	
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): return self
+	def __ilshift__(self, val):
+		self.shiftRight(val)
+		return self
+	
 	def __neg__(self): pass
 	def __pos__(self): pass
 	def __invert__(self): pass

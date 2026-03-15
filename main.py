@@ -11,6 +11,7 @@ HEADER_CODE = (
 "sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))\n"
 )
 
+# lone keywords that will trigger a function (return ---> funcReturn())
 KEYWORD_FUNCTIONS = ["return"]
 
 def printBar(): print("="*50)
@@ -28,7 +29,7 @@ def throw(area, e):
 		printBar()
 		input()
 		raise Exception()
-def catch(area, mess):
+def catch(area, mess): # mess is short for message but i guess the word mess works in this context too
 	printBar()
 	print(f"{area.upper()} CAUGHT AN ERROR:")
 	printBar()
@@ -121,34 +122,44 @@ try:
 		file = file.replace(scopeMat.group(), fullCode)
 		scopeMat = RE_SCOPE.search(file)
 	
-	# HANDLE ASSIGNMENTS (e.g. PC = M -> PC = AddressingMode(M))
-	assigns = re.findall(f".+[^=] *(?:[\+\-\*\/]|<<|>>)?= *[^=].+", file)
+	# HANDLE ASSIGNMENTS (e.g. PC = M -> PC.value = AddressingMode(M))
+	assigns = re.findall(f".+[^=!><] *(?:[\+\-\*\/]|<<|>>)?= *[^=].+", file)
+	RE_VARIABLE_MODDABLE = r"([&\*]*\w[\w\d]*)(\.\w[\w\d]*)*" # VAR, &VAR, *VAR.value, etc.
+	RE_REGISTER_MODDABLE = r"(\w[\w\d]*)" # PC.C, A, X, etc.
+	RE_RIGHT_EXEMPT = [REGISTERS, VARIABLES, RE_NUMBER, ["True", "False"]] # Python literals exempt from being turned into a string or addressing mode
 	for a in assigns:
 		aMat = re.search(r"(.+?) *((?:[\+\-\*\/]|<<|>>)?=) *(.+)", a)
 		aLeft = " ".join(aMat.group(1).strip().split(" "))
 		aAssign = aMat.group(2)
 		aRight = " ".join(aMat.group(3).strip().split(" "))
 		# TODO: check if aRight contains embedded statements (e.g. A = B == C, A = !B > C)
-		if not aLeft in list(VARIABLES.keys()) + REGISTERS: # indirect assignment (VAR1 + X = VAR2 -> LBL = VAR1 + X; LBL = VAR2 )
-			aLId = general.genId()
-			aLeft = f"{aLId} {aAssign} AddressingMode(\"{aLeft}\")\n{aLId}.value"
-		elif aAssign == "=": # variable/register assignment
+		varAttrMat = re.search(RE_VARIABLE_MODDABLE, aLeft)
+		varAttrAssign = False if varAttrMat == None else varAttrMat.group(1) in VARIABLES # whether or not a variable is involved on the left side of the assignment
+		varAttrExtended = False if not varAttrAssign else re.search(f"^ *{RE_VARIABLE_MODDABLE} *$", aLeft) == None # whether or not the left side involves an addressing mode
+		regAttrMat = re.search(RE_REGISTER_MODDABLE, aLeft)
+		regAttrAssign = False if regAttrMat == None or varAttrAssign else regAttrMat.group(1) in REGISTERS # whether or not a register is on the left side
+		regAttrExtended = False if not regAttrAssign else re.search(f"^ *{RE_REGISTER_MODDABLE} *$", aLeft) == None
+		rightExempt = any([re.search(i, aRight) != None if isinstance(i, str) else aRight in i for i in RE_RIGHT_EXEMPT])
+		if not rightExempt: aRight = f"AddressingMode(\"{aRight}\")"
+		if varAttrAssign:
+			# &VAR = 5 ---> VAR.assign("5", "=", 1), VAR + X += 7 ---> VAR.assign("7", "+=", AddressingMode("VAR + X"))
+			file = file.replace(a, f"{varAttrMat.group(1)}.assign({aRight.replace("\"","\\\"")}, \"{aAssign}\", AddressingMode(\"{aLeft}\"))", 1)
+			continue
+		elif aAssign == "=" and regAttrAssign and not regAttrExtended: # X = 5 ---> X.value = 5
 			aLeft = f"{aLeft}.value"
-		if not (aRight in REGISTERS):
-			aRight = f"AddressingMode(\"{aRight}\")"
 		file = file.replace(a, f"{aLeft} {aAssign} {aRight}", 1)
 	
 	for i, v in enumerate(varDecs):
 		file = file.replace(v, vDecBuffers[i])
 		
-		# *VAL -> VAL.address
-		#  VAL -> &VAL.address
-		# *PTR -> PTR.value.address
-		#  PTR -> &PTR.value.address
-		# &PTR -> &&PTR.value.address
+		# *VAL ---> VAL.address
+		#  VAL ---> &VAL.address
+		# *PTR ---> PTR.value.address
+		#  PTR ---> &PTR.value.address
+		# &PTR ---> &&PTR.value.address
 		
-		# &(PTR+Y) = A -> STA (PTR.value.address),y
-		# &(*VAL+X) = A -> STA VAL.address,x
+		# &(PTR+Y) = A ---> STA (PTR.value.address),y
+		# &(*VAL+X) = A ---> STA VAL.address,x
 	
 	# REPLACE KEYWORD FUNCTIONS
 	kWords = re.findall(r"\n(?:" + "|".join(KEYWORD_FUNCTIONS) + r")\n", file)
@@ -163,9 +174,9 @@ try:
 	
 	file = "\n".join([importFiles, file])
 	
-	#print(file)
+	print(file)
 	try: exec(file)
 	except Exception as e: throw("ASSEMBLY MODULE", e)
-	#input(general.asm)
+	input(general.asm)
 	input("TRANSLATION COMPLETE.")
 except Exception as e: throw("PRE-PROCESSOR", e)
