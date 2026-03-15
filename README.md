@@ -32,10 +32,10 @@ Theta is a programming language that will easily allow you to generate Assembly 
 
 	use asm_65816
 	
-	u16<0x2100> INIDISP
-	u16<0x4200> NMITIMEN
-	u16<0x2105> BGMODE
-	u16<0x4210> RDNMI
+	u8<0x2100> INIDISP
+	u8<0x4200> NMITIMEN
+	u8<0x2105> BGMODE
+	u8<0x4210> RDNMI
 	
 	main:
 	PC.C = False
@@ -52,6 +52,46 @@ Theta is a programming language that will easily allow you to generate Assembly 
 	NMITIMEN = 0x81
 	BGMODE = 0x13
 	
+	u8<0x2107> BG1SC
+	u8<0x210B> BG12NBA
+	u8<0x2101> OBJSEL
+	u8<0x2115> VMAINC
+	u8<0x2116> VMADDL
+	u8<0x2117> VMADDH
+	
+	BG1SC = 0x50
+	BG12NBA = 0
+	OBJSEL = 3
+	
+	Y = 0
+	VMAINC = 0
+	VMADDL = 0
+	VMADDH = 0
+	X = 0
+	
+	u8<0x1234> VRAMDATA
+	u8<0x2119> VMDATAHW
+	u8<0x2118> VMDATALW
+	
+	while (Y != 4) {
+		while (X != 0) {
+			VRAMDATA + X = A
+			VMDATAHW = A
+			X += 1
+			A = VRAMDATA + X
+			VMDATALW = A
+			X += 1
+		}
+		Y += 1
+	}
+	
+	u8<0x212C> TM
+	u8<0x212D> TS
+	
+	TM = 0x10
+	TS = 0x10
+	INIDISP = 0x0F
+	
 	loop:
 	wait()
 	goto(loop)
@@ -66,54 +106,110 @@ Theta is a programming language that will easily allow you to generate Assembly 
 
 ### After the pre-processor (Python code):
 
-	INIDISP = ushort("INIDISP", 0x2100)
+	INIDISP = ubyte("INIDISP", 0x2100)
 	general.VARIABLES.append(INIDISP)
-	NMITIMEN = ushort("NMITIMEN", 0x4200)
+	NMITIMEN = ubyte("NMITIMEN", 0x4200)
 	general.VARIABLES.append(NMITIMEN)
-	BGMODE = ushort("BGMODE", 0x2105)
+	BGMODE = ubyte("BGMODE", 0x2105)
 	general.VARIABLES.append(BGMODE)
-	RDNMI = ushort("RDNMI", 0x4210)
+	RDNMI = ubyte("RDNMI", 0x4210)
 	general.VARIABLES.append(RDNMI)
 	
 	main = general.Label("main")
 	general.LABELS.append(main)
-	ID_1FA8CB4D418885F = AddressingMode("PC.C")
-	ID_1FA8CB4D418885F.value = AddressingMode("False")
+	PC.C = False
 	asm("xce; rep #$10; sep #$20;")
-	X.value = AddressingMode("0x33")
-	ID_1FA8CB4D41885B1 = general.Label("ID_1FA8CB4D41885B1")
-	general.LABELS.append(ID_1FA8CB4D41885B1)
-	scopeStart("while", "PC.N == False", "ID_1FA8CB4D41885B1", "ID_1FA8CB4D41885CE")
+	X.value = 0x33
+	ID_1FA8DE97C6E1189 = general.Label("ID_1FA8DE97C6E1189")
+	general.LABELS.append(ID_1FA8DE97C6E1189)
+	scopeStart("while", "PC.N == False", "ID_1FA8DE97C6E1189", "ID_1FA8DE97C6E11A3")
 	
-	ID_1FA8CB4D4188870 = AddressingMode("INIDISP + X")
-	ID_1FA8CB4D4188870.value = AddressingMode("0")
-	ID_1FA8CB4D4188878 = AddressingMode("NMITIMEN + X")
-	ID_1FA8CB4D4188878.value = AddressingMode("0")
-	X -= AddressingMode("1")
+	INIDISP.assign(0, "=", AddressingMode("INIDISP + X"))
+	NMITIMEN.assign(0, "=", AddressingMode("NMITIMEN + X"))
+	X -= 1
 	scopeEnd()
-	ID_1FA8CB4D41885CE = general.Label("ID_1FA8CB4D41885CE")
-	general.LABELS.append(ID_1FA8CB4D41885CE)
+	ID_1FA8DE97C6E11A3 = general.Label("ID_1FA8DE97C6E11A3")
+	general.LABELS.append(ID_1FA8DE97C6E11A3)
 	
-	INIDISP.value = AddressingMode("0x8F")
-	NMITIMEN.value = AddressingMode("0x81")
-	BGMODE.value = AddressingMode("0x13")
+	INIDISP.assign(0x8F, "=", AddressingMode("INIDISP"))
+	NMITIMEN.assign(0x81, "=", AddressingMode("NMITIMEN"))
+	BGMODE.assign(0x13, "=", AddressingMode("BGMODE"))
+	
+	BG1SC = ubyte("BG1SC", 0x2107)
+	general.VARIABLES.append(BG1SC)
+	BG12NBA = ubyte("BG12NBA", 0x210B)
+	general.VARIABLES.append(BG12NBA)
+	OBJSEL = ubyte("OBJSEL", 0x2101)
+	general.VARIABLES.append(OBJSEL)
+	VMAINC = ubyte("VMAINC", 0x2115)
+	general.VARIABLES.append(VMAINC)
+	VMADDL = ubyte("VMADDL", 0x2116)
+	general.VARIABLES.append(VMADDL)
+	VMADDH = ubyte("VMADDH", 0x2117)
+	general.VARIABLES.append(VMADDH)
+	
+	BG1SC.assign(0x50, "=", AddressingMode("BG1SC"))
+	BG12NBA.assign(0, "=", AddressingMode("BG12NBA"))
+	OBJSEL.assign(3, "=", AddressingMode("OBJSEL"))
+	
+	Y.value = 0
+	VMAINC.assign(0, "=", AddressingMode("VMAINC"))
+	VMADDL.assign(0, "=", AddressingMode("VMADDL"))
+	VMADDH.assign(0, "=", AddressingMode("VMADDH"))
+	X.value = 0
+	
+	VRAMDATA = ubyte("VRAMDATA", 0x1234)
+	general.VARIABLES.append(VRAMDATA)
+	VMDATAHW = ubyte("VMDATAHW", 0x2119)
+	general.VARIABLES.append(VMDATAHW)
+	VMDATALW = ubyte("VMDATALW", 0x2118)
+	general.VARIABLES.append(VMDATALW)
+	ID_1FA8DE97C6E11CB = general.Label("ID_1FA8DE97C6E11CB")
+	general.LABELS.append(ID_1FA8DE97C6E11CB)
+	scopeStart("while", "Y != 4", "ID_1FA8DE97C6E11CB", "ID_1FA8DE97C6E11CE")
+	ID_1FA8DE97C6E11E9 = general.Label("ID_1FA8DE97C6E11E9")
+	general.LABELS.append(ID_1FA8DE97C6E11E9)
+	scopeStart("while", "X != 0", "ID_1FA8DE97C6E11E9", "ID_1FA8DE97C6E11EC")
+	
+	VRAMDATA.assign(A, "=", AddressingMode("VRAMDATA + X"))
+	VMDATAHW.assign(A, "=", AddressingMode("VMDATAHW"))
+	X += 1
+	A.value = AddressingMode("VRAMDATA + X")
+	VMDATALW.assign(A, "=", AddressingMode("VMDATALW"))
+	X += 1
+	scopeEnd()
+	ID_1FA8DE97C6E11EC = general.Label("ID_1FA8DE97C6E11EC")
+	general.LABELS.append(ID_1FA8DE97C6E11EC)
+	Y += 1
+	scopeEnd()
+	ID_1FA8DE97C6E11CE = general.Label("ID_1FA8DE97C6E11CE")
+	general.LABELS.append(ID_1FA8DE97C6E11CE)
+	
+	TM = ubyte("TM", 0x212C)
+	general.VARIABLES.append(TM)
+	TS = ubyte("TS", 0x212D)
+	general.VARIABLES.append(TS)
+	
+	TM.assign(0x10, "=", AddressingMode("TM"))
+	TS.assign(0x10, "=", AddressingMode("TS"))
+	INIDISP.assign(0x0F, "=", AddressingMode("INIDISP"))
 	
 	loop = general.Label("loop")
 	general.LABELS.append(loop)
 	wait()
 	goto(loop)
-	ID_1FA8CB4D41885EC = general.Label("ID_1FA8CB4D41885EC")
-	general.LABELS.append(ID_1FA8CB4D41885EC)
-	scopeStart(["void", "nmi"], [], "ID_1FA8CB4D41885EC", "ID_1FA8CB4D41885EF")
+	ID_1FA8DE97C6E1208 = general.Label("ID_1FA8DE97C6E1208")
+	general.LABELS.append(ID_1FA8DE97C6E1208)
+	scopeStart(["void", "nmi"], [], "ID_1FA8DE97C6E1208", "ID_1FA8DE97C6E120A")
 	
 	asm("rep #$10; sep #$20;")
 	DP.push(); A.push(); X.push(); Y.push()
-	A.value = AddressingMode("RDNMI")
+	A.value = RDNMI
 	Y.pull(); X.pull(); A.pull(); DP.pull()
 	funcReturn()
 	scopeEnd()
-	ID_1FA8CB4D41885EF = general.Label("ID_1FA8CB4D41885EF")
-	general.LABELS.append(ID_1FA8CB4D41885EF)
+	ID_1FA8DE97C6E120A = general.Label("ID_1FA8DE97C6E120A")
+	general.LABELS.append(ID_1FA8DE97C6E120A)
 
 ### After the Assembly Module (Assembly code) (NOT COMPLETE):
 
