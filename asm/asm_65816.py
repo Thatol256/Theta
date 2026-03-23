@@ -1,5 +1,9 @@
 import general
 
+# TODO: STZ DOESN'T SUPPORT 3-BYTE ADDRESSES, REVIEW ALL USES OF THE INSTRUCTION
+# TODO: INDIRECT ADDRESSING MODES DON'T TAKE INTO CONSIDERATION THE FINAL VALUE MIGHT NOT BE THE SAME STRIDE AS THE ARG
+#       POTENTIAL SOLUTION: ONLY ALLOW POINTER OBJECTS TO USE INDIRECT ADDRESSING MODES?
+
 def asm(op):
 	if isinstance(op, list): op = ";".join(op)
 	for o in op.split(";"):
@@ -61,6 +65,13 @@ ADDRESSING_MODES = [
 	{ "name": "stack relative indirect y", "match": fr"&2:\(([\+\-]{RE_UINT})\+S\)\+Y", "swap": "(#1,s),y", "maximumSize": 1 }
 ]
 
+# if a variable name is present in a string, this returns the storedvalue object
+def getEmbeddedVariable(txt):
+	varNames = [x.name for x in general.VARIABLES]
+	for i, v in enumerate(varNames):
+		if v in txt: return general.VARIABLES[i]
+	return None
+
 # also normalizes arg to hex
 def identifyMode(txt):
 	for i, a in enumerate(ADDRESSING_MODES):
@@ -87,9 +98,7 @@ def modeSyntax(md, arg): return ADDRESSING_MODES[md]["swap"].replace("1", arg)
 def resolveMode(txt):
 	txt = txt.replace(" ", "")
 	varNames = [x.name for x in general.VARIABLES]
-	var = None
-	for i, v in enumerate(varNames):
-		if v in txt: var = general.VARIABLES[i]
+	var = getEmbeddedVariable(txt)
 	if var == None: return txt
 	addr = f"0x{hex(var.address)[2:]}"
 	txt = txt.replace(f"{var.name}", "#"+addr)
@@ -180,10 +189,11 @@ XCE 		Exchange Carry and Emulation Flags 	FB 	Implied 	--MX---CE 	1 	2
 def funcReturn(): pass
 
 class Register:
-	def __init__(self, n):
+	def __init__(self, n, w):
 		self.name = n
 		self.using = False
 		self.pushes = 0
+		self.width = w
 	def __str__(self): return self.name
 	
 	def push(self): pass
@@ -203,7 +213,7 @@ class Register:
 			self.using = False
 
 class RegPC (Register):
-	def __init__(self): super().__init__("PC")
+	def __init__(self): super().__init__("PC", 2)
 	def __setattr__(self, x, op):
 		xIsFlag = x in ["N", "V", "M", "X", "D", "I", "Z", "C", "E", "B"]
 		legalIB = isinstance(op, bool) or (isinstance(op, int) and op in [0, 1])
@@ -224,7 +234,7 @@ class RegPC (Register):
 PC = RegPC()
 
 class RegDP (Register):
-	def __init__(self): super().__init__("DP")
+	def __init__(self): super().__init__("DP", 1)
 	def __setattr__(self, x, op):
 		super().__setattr__(x, op)
 	def push(self): asm("phd;")
@@ -232,7 +242,7 @@ class RegDP (Register):
 DP = RegDP()
 
 class RegA (Register):
-	def __init__(self): super().__init__("A")
+	def __init__(self): super().__init__("A", 1) # width can be changed with an instruction; don't forget!
 	def __len__(self): pass #depends on pc flag
 	def __setattr__(self, x, op):
 		if x == "value":
@@ -370,7 +380,7 @@ class RegA (Register):
 A = RegA()
 
 class RegX (Register):
-	def __init__(self): super().__init__("X")
+	def __init__(self): super().__init__("X", 2)
 	def __len__(self): pass #depends on pc flag
 	def __setattr__(self, x, op):
 		if x == "value":
@@ -439,7 +449,7 @@ class RegX (Register):
 X = RegX()
 
 class RegY (Register):
-	def __init__(self): super().__init__("Y")
+	def __init__(self): super().__init__("Y", 2)
 	def __len__(self): pass #depends on pc flag
 	def __setattr__(self, x, op):
 		if x == "value":
@@ -511,6 +521,129 @@ class StoredValue (general.ValueHook):
 	def __init__(self, nam, adr, wid, sig): super().__init__(nam, adr, wid, sig)
 	def __len__(self): return super().__len__()
 	
+	# val [int/bool/addressingmode/register/storedvalue] = Value to assign to the variable
+	# mode [=/+=/-= etc.]
+	# ctx [str/storedvalue/addressingmode] = The context in which it's used (VAR =, &VAR =, VAR + X =, etc.)
+	def assign(self, val, mode, ctx):
+		'''
+		CTX MODE VAL
+		
+		ADSM(VAR) OP NUM
+		ADSM(VAR) OP REG
+		ADSM(VAR) OP VAR
+		ADSM(VAR) OP ADSM(VAR)
+		
+		ADSM(VAR) = ADSM(VAR)
+		*VAR1+5 = *VAR2+X
+		
+		for i in max(VAR1.width, VAR2.width):
+			if i > min(VAR1.width, VAR2.width):
+				VAR1+5+i = 0
+			else:
+				A = VAR2+X+i
+				VAR1+5+i = A
+		
+		ADSM(VAR) OP ADSM(VAR)
+		*VAR1+5 -= *VAR2+X
+
+		clc
+		for i in min(VAR1.width, VAR2.width):
+			A = VAR1+5+i
+			A -= VAR2+X+i
+			VAR1+5+i = A
+			if i != min(VAR1.width, VAR2.width):
+				if carry clear:
+					goto(LABEL_AFTER_SUB)
+		LABEL_AFTER_SUB:
+		'''
+		
+		# info collection (oh isinstance by beloved, you will never understand the horrors that is this function)
+		if isinstance(val, bool): val = 1 if val == True else 0
+		elif isinstance(val, StoredValue): val = AddressingMode(val.name)
+		if isinstance(ctx, str): ctx = AddressingMode(ctx)
+		elif isinstance(ctx, StoredValue): ctx = AddressingMode(ctx.name)
+		simpleContext = ctx.unresolvedText == self.name
+		directAssign = mode == "="
+		
+		if not directAssign:
+			assignMap = {"+=": "adc", "-=": "sbc", "<<=": "asl", ">>=": "lsr", "&=": "and", "|=": "oro", "^=": "eor"}
+			if not mode in assignMap.keys(): catch("STOREDVALUE.ASSIGN()", f"Mode {mode} not valid.")
+		
+		def offsetAddress(adsm, ind):
+			if isinstance(adsm, AddressingMode): return AddressingMode(adsm.unresolvedText.replace(self.name, "0x"+hex(self.address+ind)[2:]))
+			else: AddressingMode("0x"+hex(addr+ind)[2:])
+		def transferSet(fr, to): # given the widths of two values that are being transferred, this tells you which byte in each value should be transferred. None means transfer a 0
+			# examples:
+			# 4, 2 ---> ([2, 3], [0, 1])
+			# 3, 5 ---> ([None, None, 0, 1, 2], [0, 1, 2, 3, 4])
+			# 2, 2 ---> ([0, 1], [0, 1])
+			if fr == to: return (range(fr), range(to), A.width)
+			elif fr > to: return (range(fr-to, fr, A.width), range(0, to, A.width))
+			return ([None]*((to-fr)//A.width)+range(0, fr, A.width), range(0, to, A.width))
+		def minimumWidth(v):
+			x = 1
+			while True:
+				if v < 256**x: return x
+				x += 1
+		
+		if isinstance(val, int): # ??? OP NUM
+			if self.width // A.width != self.width / A.width: catch("STOREDVALUE.ASSIGN()", f"Module doesn't support transfer from a register ({str(A)}) with a width that is not a multiple of the destination's width ({str(self)}). This can be fixed by using the 8-bit mode on the respective register.")
+			vBytes = [(val>>(8*A.width*i))&sum([0xFF<<(8*j) for j in range(A.width)]) for i in range(self.width//A.width)]
+			if len(vBytes) < self.width: vBytes = [0 for i in range((self.width-len(vBytes))//A.width)] + vBytes
+			if val != 0: A.use()
+			if directAssign:
+				for i, b in enumerate(vBytes):
+					if b == 0: asm(f"stz {offsetAddress(ctx, i*A.width).swap};")
+					else: A.value = b; asm(f"sta {offsetAddress(ctx, i*A.width).swap};")
+			else:
+				if val == 0: return
+				if assignMap[mode] in ["asl", "asr"]:
+					for i in range(val):
+						PC.C = False
+						for b in range(len(vBytes)):
+							asm(f"{assignMap[mode]} {offsetAddress(ctx, i*A.width).swap};")
+				else:
+					PC.C = False
+					for i, b in enumerate(vBytes):
+						A.value = offsetAddress(ctx, i*A.width);
+						asm(f"{assignMap[mode]} {"0x"+hex(b)[2:]};")
+						asm(f"sta {offsetAddress(ctx, i*A.width).swap};")
+			if val != 0: A.unuse()
+		elif isinstance(val, Register): # ??? OP REG
+			if not directAssign: catch("STOREDVALUE.ASSIGN()", f"Module doesn't support transfer from a register ({str(val)}) using non-direct assignment ({str(ctx)}).")
+			if self.width // A.width != self.width / A.width: catch("STOREDVALUE.ASSIGN()", f"Module doesn't support transfer from a register ({str(A)}) with a width that is not a multiple of the destination's width ({str(self)}). This can be fixed by using the 8-bit mode on the respective register.")
+			units = max(self.width, val.width) // A.width
+			zeros = ((self.width - val.width) // A.width) if val.width < self.width else 0
+			empties = ((val.width - width.width) // A.width) if val.width > self.width else 0
+			transfers = self.width // A.width - zeros
+			if val.name == "A" or (val.name in ["X", "Y"] and minimumWidth(self.address) <= 2 and empties == 0):
+				for i in range(zeros): asm(f"stz {offsetAddress(ctx, i*A.width).swap};")
+				asm(f"st{val.name.lower()} {offsetAddress(ctx, zeros*A.width).swap};")
+			else:
+				if self.width // A.width != self.width / A.width: catch("STOREDVALUE.ASSIGN()", f"Module doesn't support transfer from a register ({str(A)}) with a width that is not a multiple of the destination's width ({str(self)}). This can be fixed by using the 8-bit mode on the respective register.")
+				A.use()
+				val.push()
+				for i in range(transfers): A.pull(); asm(f"sta {offsetAddress(ctx, i*A.width).swap};")
+				for i in range(zeros): asm(f"stz {offsetAddress(ctx, i*A.width).swap};")
+				for i in range(empties): A.pull()
+				A.unuse()
+		elif isinstance(val, AddressingMode): # ??? OP ADSR
+			if self.width // A.width != self.width / A.width: catch("STOREDVALUE.ASSIGN()", f"Module doesn't support transfer from a register ({str(A)}) with a width that is not a multiple of the destination's width ({str(self)}). This can be fixed by using the 8-bit mode on the respective register.")
+			ctxVar = getEmbeddedVariable(ctx.name)
+			A.use()
+			if directAssign:
+				for f, t in transferSet(ctxVar.width, self.width):
+					if f == None: asm(f"stz {offsetAddress(ctx, t).swap};")
+					else: A.value = offsetAddress(val, f); asm(f"sta {offsetAddress(ctx, t).swap};")
+			else:
+				if assignMap[mode] in ["asl", "asr"]: catch("STOREDVALUE.ASSIGN()", f"Module doesn't support variable bit shifting ({str(ctx)} {mode} {str(val)}).")
+				PC.C = False
+				for f, t in transferSet(ctxVar.width, self.width):
+					A.value = offsetAddress(ctx, t*A.width);
+					asm(f"{assignMap[mode]} {offsetAddress(val, f*A.width).swap};")
+					asm(f"sta {offsetAddress(ctx, i*A.width).swap};")
+			A.unuse()
+		
 	def getBits(self, field): pass
 	def getFlag(self, field): pass
 	def push(self): pass
@@ -518,27 +651,25 @@ class StoredValue (general.ValueHook):
 	
 	def __add__(self, val): pass
 	def __radd__(self, val): pass
-	def __iadd__(self, val): return self
+	def __iadd__(self, val): self.assign(val, "+=", self.name); return self
 	def __sub__(self, val): pass
 	def __rsub__(self, val): pass
-	def __isub__(self, val): return self
-	
+	def __isub__(self, val): self.assign(val, "-=", self.name); return self
 	def __and__(self, val): pass
 	def __rand__(self, val): pass
-	def __iand__(self, val): return self
+	def __iand__(self, val): self.assign(val, "&=", self.name); return self
 	def __or__(self, val): pass
 	def __ror__(self, val): pass
-	def __ior__(self, val): return self
+	def __ior__(self, val): self.assign(val, "|=", self.name); return self
 	def __xor__(self, val): pass
 	def __rxor__(self, val): pass
-	def __ixor__(self, val): return self
-	
+	def __ixor__(self, val): self.assign(val, "^=", self.name); return self
 	def __rshift__(self, val): pass
 	def __rrshift__(self, val): pass
-	def __irshift__(self, val): return self
+	def __irshift__(self, val): self.assign(val, ">>=", self.name); return self
 	def __lshift__(self, val): pass
 	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): return self
+	def __ilshift__(self, val): self.assign(val, "<<=", self.name); return self
 	
 	def __neg__(self): pass
 	def __pos__(self): pass
@@ -551,8 +682,6 @@ class StoredValue (general.ValueHook):
 	def __gt__(self, val): pass
 	def __le__(self, val): pass
 	def __ge__(self, val): pass
-	
-	def assign(self, val, mode, refs): pass
 
 class ubyte (StoredValue):
 	def __init__(self, nam, adr): super().__init__(nam, adr, 1, False)
