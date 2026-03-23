@@ -11,7 +11,7 @@ Theta is a programming language that will easily allow you to generate Assembly 
 ## Current Progress
 - The Pre-processor is, at the moment, complete, although there is definitely minimal error checking.
 - The provided Assembly module (asm_65816.py) supports most instructions besides jump/branch/compare instructions, and also supports addressing modes.
-- Variable assignment has been complete, and supports both addressing modes and custom-sized unsigned integers, though there has not been a lot of error checking yet.
+- Variable assignment has been complete, and supports both addressing modes and custom-sized unsigned integers, though it hasn't been thoroughly tested yet.
 - At the moment, the script does not produce any output files, and the only way to run the script is to have a file named "test.tha" in the same directory.
 
 ## WARNINGS:
