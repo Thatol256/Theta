@@ -121,16 +121,16 @@ Theta is a programming language that will easily allow you to generate Assembly 
 	PC.C = False
 	asm("xce; rep #$10; sep #$20;")
 	X.value = 0x33
-	ID_1FA8DE97C6E1189 = general.Label("ID_1FA8DE97C6E1189")
-	general.LABELS.append(ID_1FA8DE97C6E1189)
-	scopeStart("while", "PC.N == False", "ID_1FA8DE97C6E1189", "ID_1FA8DE97C6E11A3")
+	ID_1FA8EEB50355380 = general.Label("ID_1FA8EEB50355380")
+	general.LABELS.append(ID_1FA8EEB50355380)
+	scopeStart("while", "PC.N == False", "ID_1FA8EEB50355380", "ID_1FA8EEB503553AF")
 	
 	INIDISP.assign(0, "=", AddressingMode("INIDISP + X"))
 	NMITIMEN.assign(0, "=", AddressingMode("NMITIMEN + X"))
 	X -= 1
 	scopeEnd()
-	ID_1FA8DE97C6E11A3 = general.Label("ID_1FA8DE97C6E11A3")
-	general.LABELS.append(ID_1FA8DE97C6E11A3)
+	ID_1FA8EEB503553AF = general.Label("ID_1FA8EEB503553AF")
+	general.LABELS.append(ID_1FA8EEB503553AF)
 	
 	INIDISP.assign(0x8F, "=", AddressingMode("INIDISP"))
 	NMITIMEN.assign(0x81, "=", AddressingMode("NMITIMEN"))
@@ -165,12 +165,12 @@ Theta is a programming language that will easily allow you to generate Assembly 
 	general.VARIABLES.append(VMDATAHW)
 	VMDATALW = ubyte("VMDATALW", 0x2118)
 	general.VARIABLES.append(VMDATALW)
-	ID_1FA8DE97C6E11CB = general.Label("ID_1FA8DE97C6E11CB")
-	general.LABELS.append(ID_1FA8DE97C6E11CB)
-	scopeStart("while", "Y != 4", "ID_1FA8DE97C6E11CB", "ID_1FA8DE97C6E11CE")
-	ID_1FA8DE97C6E11E9 = general.Label("ID_1FA8DE97C6E11E9")
-	general.LABELS.append(ID_1FA8DE97C6E11E9)
-	scopeStart("while", "X != 0", "ID_1FA8DE97C6E11E9", "ID_1FA8DE97C6E11EC")
+	ID_1FA8EEB503553D8 = general.Label("ID_1FA8EEB503553D8")
+	general.LABELS.append(ID_1FA8EEB503553D8)
+	scopeStart("while", "Y != 4", "ID_1FA8EEB503553D8", "ID_1FA8EEB503553DB")
+	ID_1FA8EEB503553F6 = general.Label("ID_1FA8EEB503553F6")
+	general.LABELS.append(ID_1FA8EEB503553F6)
+	scopeStart("while", "X != 0", "ID_1FA8EEB503553F6", "ID_1FA8EEB503553F9")
 	
 	VRAMDATA.assign(A, "=", AddressingMode("VRAMDATA + X"))
 	VMDATAHW.assign(A, "=", AddressingMode("VMDATAHW"))
@@ -179,12 +179,12 @@ Theta is a programming language that will easily allow you to generate Assembly 
 	VMDATALW.assign(A, "=", AddressingMode("VMDATALW"))
 	X += 1
 	scopeEnd()
-	ID_1FA8DE97C6E11EC = general.Label("ID_1FA8DE97C6E11EC")
-	general.LABELS.append(ID_1FA8DE97C6E11EC)
+	ID_1FA8EEB503553F9 = general.Label("ID_1FA8EEB503553F9")
+	general.LABELS.append(ID_1FA8EEB503553F9)
 	Y += 1
 	scopeEnd()
-	ID_1FA8DE97C6E11CE = general.Label("ID_1FA8DE97C6E11CE")
-	general.LABELS.append(ID_1FA8DE97C6E11CE)
+	ID_1FA8EEB503553DB = general.Label("ID_1FA8EEB503553DB")
+	general.LABELS.append(ID_1FA8EEB503553DB)
 	
 	TM = ubyte("TM", 0x212C)
 	general.VARIABLES.append(TM)
@@ -199,9 +199,9 @@ Theta is a programming language that will easily allow you to generate Assembly 
 	general.LABELS.append(loop)
 	wait()
 	goto(loop)
-	ID_1FA8DE97C6E1208 = general.Label("ID_1FA8DE97C6E1208")
-	general.LABELS.append(ID_1FA8DE97C6E1208)
-	scopeStart(["void", "nmi"], [], "ID_1FA8DE97C6E1208", "ID_1FA8DE97C6E120A")
+	ID_1FA8EEB50355413 = general.Label("ID_1FA8EEB50355413")
+	general.LABELS.append(ID_1FA8EEB50355413)
+	scopeStart(["void", "nmi"], [], "ID_1FA8EEB50355413", "ID_1FA8EEB50355416")
 	
 	asm("rep #$10; sep #$20;")
 	DP.push(); A.push(); X.push(); Y.push()
@@ -209,31 +209,66 @@ Theta is a programming language that will easily allow you to generate Assembly 
 	Y.pull(); X.pull(); A.pull(); DP.pull()
 	funcReturn()
 	scopeEnd()
-	ID_1FA8DE97C6E120A = general.Label("ID_1FA8DE97C6E120A")
-	general.LABELS.append(ID_1FA8DE97C6E120A)
+	ID_1FA8EEB50355416 = general.Label("ID_1FA8EEB50355416")
+	general.LABELS.append(ID_1FA8EEB50355416)
 
 ### After the Assembly Module (Assembly code) (NOT COMPLETE):
 
 	main:
+		clc
 		xce
 		rep #$10
 		sep #$20
-	
-	ID_1FA8CB4D41885B1:
+		ldx #$33
+	ID_1FA8EEB50355380:
+		stz None
+		stz None
 		dex
-	
-	ID_1FA8CB4D41885CE:
+	ID_1FA8EEB503553AF:
+		lda #$8f
+		sta #$2100
+		lda #$81
+		sta #$4200
+		lda #$13
+		sta #$2105
+		lda #$50
+		sta #$2107
+		stz #$210b
+		lda #$3
+		sta #$2101
+		ldy #$0
+		stz #$2115
+		stz #$2116
+		stz #$2117
+		ldx #$0
+	ID_1FA8EEB503553D8:
+	ID_1FA8EEB503553F6:
+		sta None
+		sta #$2119
+		inx
+		lda $1234,x
+		sta #$2118
+		inx
+	ID_1FA8EEB503553F9:
+		iny
+	ID_1FA8EEB503553DB:
+		lda #$10
+		sta #$212c
+		lda #$10
+		sta #$212d
+		lda #$f
+		sta #$2100
 	loop:
 		wai
-	
-	ID_1FA8CB4D41885EC:
+	ID_1FA8EEB50355413:
 		rep #$10
 		sep #$20
+		phd
 		pha
 		phx
 		phy
-		lda $4210
 		ply
 		plx
 		pla
-	ID_1FA8CB4D41885EF:
+		pld
+	ID_1FA8EEB50355416:
