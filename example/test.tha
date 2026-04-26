@@ -1,0 +1,73 @@
+use asm_65816
+
+u8<0x2100> INIDISP
+u8<0x4200> NMITIMEN
+u8<0x2105> BGMODE
+u8<0x4210> RDNMI
+
+main:
+PC.C = False
+asm("xce; rep #$10; sep #$20;")
+X = 0x33
+
+while (PC.N == False) {
+	INIDISP + X = 0
+	NMITIMEN + X = 0
+	X -= 1
+}
+
+INIDISP = 0x8F
+NMITIMEN = 0x81
+BGMODE = 0x13
+
+u8<0x2107> BG1SC
+u8<0x210B> BG12NBA
+u8<0x2101> OBJSEL
+u8<0x2115> VMAINC
+u8<0x2116> VMADDL
+u8<0x2117> VMADDH
+
+BG1SC = 0x50
+BG12NBA = 0
+OBJSEL = 3
+
+Y = 0
+VMAINC = 0
+VMADDL = 0
+VMADDH = 0
+X = 0
+
+u8<0x1234> VRAMDATA
+u8<0x2119> VMDATAHW
+u8<0x2118> VMDATALW
+
+while (Y != 4) {
+	while (X != 0) {
+		A = VRAMDATA + X
+		VMDATAHW = A
+		X += 1
+		A = VRAMDATA + X
+		VMDATALW = A
+		X += 1
+	}
+	Y += 1
+}
+
+u8<0x212C> TM
+u8<0x212D> TS
+
+TM = 0x10
+TS = 0x10
+INIDISP = 0x0F
+
+loop:
+wait()
+goto(loop)
+
+void nmi () {
+	asm("rep #$10; sep #$20;")
+	DP.push(); A.push(); X.push(); Y.push()
+	A = RDNMI
+	Y.pull(); X.pull(); A.pull(); DP.pull()
+	returnRti
+}

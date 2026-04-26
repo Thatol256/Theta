@@ -4,13 +4,13 @@ import general
 # TODO: INDIRECT ADDRESSING MODES DON'T TAKE INTO CONSIDERATION THE FINAL VALUE MIGHT NOT BE THE SAME STRIDE AS THE ARG
 #       POTENTIAL SOLUTION: ONLY ALLOW POINTER OBJECTS TO USE INDIRECT ADDRESSING MODES?
 
-def asm(op):
-	if isinstance(op, list): op = ";".join(op)
-	for o in op.split(";"):
-		if o != "": general.asm.append(o.strip())
+def asm(op): general.addAsm(op)
+def raw(txt): general.addRaw(txt)
 def wait(): asm("wai;")
 def nop(): asm("nop;")
 def stop(): asm("stp;")
+
+def catch(a, b): general.catch(a, b)
 
 DATATYPES = ["ubyte", "ushort", "uint", "sbyte", "sshort", "sint", "vector", "pointer", "array"]
 REGISTERS = ["A", "X", "Y", "PC"]
@@ -111,20 +111,50 @@ def resolveMode(txt):
 		else: txt = txt.replace("&", f"&{var.width}:")
 	return txt
 
-'''
-Address mode: None, None; From PC.C => PC.C
-Address mode: None, None; From False => False
-Address mode: Immediate, $33; From 0x33 => 0x33
-Address mode: Absolute x, $2100; From INIDISP + X => #0x2100+X
-Address mode: Immediate, $0; From 0 => 0
-Address mode: Absolute x, $4200; From NMITIMEN + X => #0x4200+X
-Address mode: Immediate, $0; From 0 => 0
-Address mode: Immediate, $1; From 1 => 1
-Address mode: Immediate, $8F; From 0x8F => 0x8F
-Address mode: Immediate, $81; From 0x81 => 0x81
-Address mode: Immediate, $13; From 0x13 => 0x13
-Address mode: Absolute, $4210; From RDNMI => #0x4210
+DEFAULT_MODES = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
+MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
+MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
 
+class AddressingMode:
+	def __init__(self, md):
+		self.unresolvedText = md
+		self.resolvedText = resolveMode(self.unresolvedText)
+		self.mode, self.arg = identifyMode(self.resolvedText)
+		self.swap = modeSyntax(self.mode, self.arg) if (self.mode != None and self.arg != None) else None
+	def __str__(self): return f"Address mode: {ADDRESSING_MODES[self.mode]["name"].capitalize() if self.mode != None else "None"}, {self.arg}; From {self.unresolvedText} => {self.resolvedText}"
+	
+	def __eq__(self, val):
+		if isinstance(val, int): return self.mode == MODE_IMMEDIATE and mode.swap == f"#${hex(val)[2:]}"
+		elif isinstance(val, str): return self.swap == AddressingMode(val).swap
+		elif isinstance(val, AddressingMode): return self.swap == val.swap
+		return False
+
+def adsmInt(val):
+	if isinstance(val, int): return val
+	if isinstance(val, AddressingMode):
+		if val.mode == MODE_IMMEDIATE:
+			return int(val.arg,16)
+	return None
+
+# ctx - context function (for error handling) (e.g. "__IADD__")
+# val - arg
+# opc - opcode
+# modes - accepted addressing modes
+# letNAdsm - if True, returns False if type isn't an addressing mode, otherwise throw error
+# letNMode - if True, returns False if addressing mode unaccepted, otherwise throw error
+def opSwap(ctx, val, opc, modes, letNAdsm = False, letNMode = False):
+	if isinstance(val, general.ValueHook): val = val.address
+	if isinstance(val, int): val = AddressingMode(str(val))
+	if isinstance(val, AddressingMode):
+		if val.mode in modes:
+			asm(f"{opc} {val.swap};")
+			return True
+		if not letNMode: catch(f"{ctx}->OPSWAP()", f"Unaccepted addressing mode ({val}).")
+		return False
+	if not letNAdsm: catch(f"{ctx}->OPSWAP()", f"Val ({val}) is not a valid type ({type(val)}).")
+	return False
+
+'''
 VAR -> #VAR.address
 *VAR -> VAR.address
 &(*VAR + X) -> &VAR.width:(VAR.address + X)
@@ -134,22 +164,14 @@ PTR -> #PTR.address
 &(*PTR + X) -> &PTR.reference.width:(PTR.address + X)
 
 INSTRUCTIONS LEFT:
-BCC nearlabel 	BLT 	Branch if Carry Clear 	90 	Program Counter Relative 		2 	2[5][6]
-BCS nearlabel 	BGE 	Branch if Carry Set 	B0 	Program Counter Relative 		2 	2[5][6]
-BEQ nearlabel 		Branch if Equal 	F0 	Program Counter Relative 		2 	2[5][6]
 BIT dp 		Test Bits 	24 	Direct Page 	NV----Z- 	2 	3[1][2]
 BIT addr 		Test Bits 	2C 	Absolute 	NV----Z- 	3 	4[1]
 BIT dp,X 		Test Bits 	34 	DP Indexed,X 	NV----Z- 	2 	4[1][2]
 BIT addr,X 		Test Bits 	3C 	Absolute Indexed,X 	NV----Z- 	3 	4[1][3]
 BIT #const 		Test Bits 	89 	Immediate 	------Z- 	2[12] 	2[1]
-BMI nearlabel 		Branch if Minus 	30 	Program Counter Relative 		2 	2[5][6]
-BNE nearlabel 		Branch if Not Equal 	D0 	Program Counter Relative 		2 	2[5][6]
-BPL nearlabel 		Branch if Plus 	10 	Program Counter Relative 		2 	2[5][6]
 BRA nearlabel 		Branch Always 	80 	Program Counter Relative 		2 	3[6]
 BRK 		Break 	00 	Stack/Interrupt 	----DI-- 	2[13] 	7[7]
 BRL label 		Branch Long Always 	82 	Program Counter Relative Long 		3 	4
-BVC nearlabel 		Branch if Overflow Clear 	50 	Program Counter Relative 		2 	2[5][6]
-BVS nearlabel 		Branch if Overflow Set 	70 	Program Counter Relative 		2 	2[5][6]
 COP #const 		Co-Processor 	02 	Stack/Interrupt 	----DI-- 	2[13] 	7[7]
 JMP addr 		Jump 	4C 	Absolute 		3 	3
 JMP long 	JML 	Jump 	5C 	Absolute Long 		4 	4
@@ -186,38 +208,12 @@ XBA 		Exchange B and A 8-bit Accumulators 	EB 	Implied 	N-----Z- 	1 	3
 XCE 		Exchange Carry and Emulation Flags 	FB 	Implied 	--MX---CE 	1 	2
 '''
 
-def funcReturn(): pass
-
-class Register:
-	def __init__(self, n, w):
-		self.name = n
-		self.using = False
-		self.pushes = 0
-		self.width = w
-	def __str__(self): return self.name
-	
-	def push(self): pass
-	def pull(self): pass
-	
-	def use(self):
-		if self.using:
-			self.push()
-			self.pushes += 1
-		self.using = True
-	
-	def unuse(self):
-		if self.pushes > 0:
-			self.pull()
-			self.pushes -= 1
-		if self.pushes == 0:
-			self.using = False
-
-class RegPC (Register):
+class RegPC (general.Register):
 	def __init__(self): super().__init__("PC", 2)
 	def __setattr__(self, x, op):
 		xIsFlag = x in ["N", "V", "M", "X", "D", "I", "Z", "C", "E", "B"]
 		legalIB = isinstance(op, bool) or (isinstance(op, int) and op in [0, 1])
-		legalAdsm = type(op).__name__ == "AddressingMode" and op.resolvedText in ["True", "False", "$0", "$1"]
+		legalAdsm = isinstance(op, AddressingMode) and op.resolvedText in ["True", "False", "$0", "$1"]
 		if (legalIB or legalAdsm) and xIsFlag:
 			if legalAdsm: op = op.resolvedText in ["True", "$1"]
 			if legalIB: op = op in [True, 1]
@@ -233,7 +229,7 @@ class RegPC (Register):
 	def pull(self): asm("plp;")
 PC = RegPC()
 
-class RegDP (Register):
+class RegDP (general.Register):
 	def __init__(self): super().__init__("DP", 1)
 	def __setattr__(self, x, op):
 		super().__setattr__(x, op)
@@ -241,279 +237,118 @@ class RegDP (Register):
 	def pull(self): asm("pld;")
 DP = RegDP()
 
-class RegA (Register):
+class RegA (general.Register):
 	def __init__(self): super().__init__("A", 1) # width can be changed with an instruction; don't forget!
 	def __len__(self): pass #depends on pc flag
 	def __setattr__(self, x, op):
 		if x == "value":
-			if isinstance(op, Register):
+			if isinstance(op, general.Register):
 				match op.name:
 					case "X": general.asm.append("txa;")
 					case "Y": general.asm.append("tya;")
-			elif isinstance(op, int): asm(f"lda #${hex(op)[2:]}")
-			elif isinstance(op, AddressingMode):
-				acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
-				MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
-				MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
-				if op.mode in acceptedModes: asm(f"lda {op.swap};")
-				else: catch("REGA.__SETATTR__()", f"Unaccepted addressing mode ({str(op)}).")
+			else: opSwap("REGA.__SETATTR__()", op, "lda", DEFAULT_MODES, True)
 		super().__setattr__(x, op)
 	def push(self): asm("pha;")
 	def pull(self): asm("pla;")
 	
-	def __add__(self, val): pass
-	def __radd__(self, val): pass
 	def __iadd__(self, val):
-		if isinstance(val, int):
-			asm("inc a;" if val==1 else f"adc #${hex(val)[2:]};")
-		if isinstance(val, AddressingMode):
-			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
-			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
-			MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
-			if val.mode in acceptedModes:
-				if val.mode == MODE_IMMEDIATE: asm("inc a;" if val.arg=="$1" else f"adc #{val.swap};")
-				else: asm(f"adc {val.swap};")
-			else: catch("REGA.__IADD__()", f"Unaccepted addressing mode ({str(val)}).")
+		if val == 1: asm("inc a;")
+		else: opSwap("REGA.__IADD__()", val, "adc", DEFAULT_MODES)
 		return self
-	
-	def __sub__(self, val): pass
-	def __rsub__(self, val): pass
 	def __isub__(self, val):
-		if isinstance(val, int):
-			asm("dec a;" if val==1 else f"sbc #${hex(val)[2:]};")
-		elif isinstance(val, AddressingMode):
-			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
-			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
-			MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
-			if val.mode in acceptedModes:
-				if val.mode == MODE_IMMEDIATE: asm("dec a;" if val.arg=="$1" else f"sbc #{val.swap};")
-				else: asm(f"sbc {val.swap};")
-			else: catch("REGA.__ISUB__()", f"Unaccepted addressing mode ({str(val)}).")
+		if val == 1: asm("dec a;")
+		else: opSwap("REGA.__ISUB__()", val, "sbc", DEFAULT_MODES)
 		return self
-	
-	def __and__(self, val): pass
-	def __rand__(self, val): pass
-	def __iand__(self, val):
-		if isinstance(val, int): asm(f"and #${hex(val)[2:]};")
-		elif isinstance(val, AddressingMode):
-			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
-			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
-			MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
-			if val.mode in acceptedModes:
-				if val.mode == MODE_IMMEDIATE: asm(f"and #{val.swap};")
-				else: asm(f"and {val.swap};")
-			else: catch("REGA.__IAND__()", f"Unaccepted addressing mode ({str(val)}).")
-		return self
-	
-	def __or__(self, val): pass
-	def __ror__(self, val): pass
-	def __ior__(self, val):
-		if isinstance(val, int): asm(f"oro #${hex(val)[2:]};")
-		elif isinstance(val, AddressingMode):
-			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
-			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
-			MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
-			if val.mode in acceptedModes:
-				if val.mode == MODE_IMMEDIATE: asm(f"oro #{val.swap};")
-				else: asm(f"oro {val.swap};")
-			else: catch("REGA.__IOR__()", f"Unaccepted addressing mode ({str(val)}).")
-		return self
-	
-	def __xor__(self, val): pass
-	def __rxor__(self, val): pass
-	def __ixor__(self, val):
-		if isinstance(val, int): asm(f"eor #${hex(val)[2:]};")
-		elif isinstance(val, AddressingMode):
-			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
-			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
-			MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
-			if val.mode in acceptedModes:
-				if val.mode == MODE_IMMEDIATE: asm(f"eor #{val.swap};")
-				else: asm(f"eor {val.swap};")
-			else: catch("REGA.__IXOR__()", f"Unaccepted addressing mode ({str(val)}).")
-		return self
+	def __iand__(self, val): opSwap("REGA.__IAND__()", val, "and", DEFAULT_MODES); return self
+	def __ior__(self, val): opSwap("REGA.__IOR__()", val, "oro", DEFAULT_MODES); return self
+	def __ixor__(self, val): opSwap("REGA.__IXOR__()", val, "eor", DEFAULT_MODES); return self
 	
 	def shiftLeft(self, val):
-		if isinstance(val, int): asm(f"asl a;"*val)
-		elif isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: asm(f"asl #{val.swap};"*int(val.swap[1:],16))
-		else: catch("REGA.SHIFTLEFT()", f"Unaccepted value ({str(val)}).")
+		if n := adsmInt(val) != None: asm(f"asl a;"*n)
+		else: opSwap("REGA.SHIFTLEFT()", val, "asl", [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X])
 	def shiftRight(self, val):
-		if isinstance(val, int): asm(f"lsr a;"*val)
-		elif isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: asm(f"lsr #{val.swap};"*int(val.swap[1:],16))
-		else: catch("REGA.SHIFTRIGHT()", f"Unaccepted value ({str(val)}).")
+		if n := adsmInt(val) != None: asm(f"lsr a;"*n)
+		else: opSwap("REGA.SHIFTRIGHT()", val, "lsr", [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X])
 	def rotateLeft(self, val):
-		if isinstance(val, int): asm(f"rol a;"*val)
-		elif isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: asm(f"rol #{val.swap};"*int(val.swap[1:],16))
-		else: catch("REGA.ROTATELEFT()", f"Unaccepted value ({str(val)}).")
+		if n := adsmInt(val) != None: asm(f"rol a;"*n)
+		else: opSwap("REGA.ROTATELEFT()", val, "rol", [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X])
 	def rotateRight(self, val):
-		if isinstance(val, int): asm(f"ror a;"*val)
-		elif isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: asm(f"ror #{val.swap};"*int(val.swap[1:],16))
-		else: catch("REGA.ROTATERIGHT()", f"Unaccepted value ({str(val)}).")
+		if n := adsmInt(val) != None: asm(f"ror a;"*n)
+		else: opSwap("REGA.ROTATERIGHT()", val, "ror", [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X])
 	
-	def __rshift__(self, val): pass
-	def __rrshift__(self, val): pass
-	def __irshift__(self, val):
-		self.shiftRight(val)
-		return self
+	def __irshift__(self, val): self.shiftRight(val); return self
+	def __ilshift__(self, val): self.shiftLeft(val); return self
 	
-	def __lshift__(self, val): pass
-	def __rlshift__(self, val): pass
-	def __ilshift__(self, val):
-		self.shiftLeft(val)
-		return self
-	
-	def compare(self, op):
-		if isinstance(op, int): asm(f"cmp #${hex(op)[2:]}")
-		elif isinstance(op, AddressingMode):
-			acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_IMMEDIATE,
-			MODE_ABSOLUTE, MODE_ABSOLUTE_LONG, MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y,
-			MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y, MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
-			if op.mode in acceptedModes: asm(f"cmp {op.swap};")
-			else: catch("REGA.COMPARE()", f"Unaccepted addressing mode ({str(op)}).")
-	
-	def __eq__(self, val): pass
-	def __ne__(self, val): pass
-	def __lt__(self, val): pass
-	def __gt__(self, val): pass
-	def __le__(self, val): pass
-	def __ge__(self, val): pass
+	def compare(self, op): opSwap("REGA.__COMPARE__()", val, "cmp", DEFAULT_MODES)
 A = RegA()
 
-class RegX (Register):
+class RegX (general.Register):
 	def __init__(self): super().__init__("X", 2)
 	def __len__(self): pass #depends on pc flag
 	def __setattr__(self, x, op):
 		if x == "value":
-			if isinstance(op, Register):
+			if isinstance(op, general.Register):
 				match op.name:
 					case "A": general.asm.append("tax;")
 					case "Y": general.asm.append("tyx;")
 					case "S": general.asm.append("tsx;")
-			elif isinstance(op, int): asm(f"ldx #${hex(op)[2:]}")
-			elif isinstance(op, AddressingMode):
-				acceptedModes = [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_Y, MODE_ABSOLUTE_Y]
-				if op.mode in acceptedModes: asm(f"ldx {op.swap};")
-				else: catch("REGX.__SETATTR__()", f"Unaccepted addressing mode ({str(op)}).")
+			else: opSwap("REGX.__SETATTR__()", op, "ldx", [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_Y, MODE_ABSOLUTE_Y], True)
 		super().__setattr__(x, op)
 	def push(self): asm("phx;")
 	def pull(self): asm("plx;")
 	
-	def __add__(self, val): pass
-	def __radd__(self, val): pass
 	def __iadd__(self, val):
 		global A, X
-		if isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: val = int(val.arg[1:],16)
-		if isinstance(val, int) and (val >= 1 and val <= 3): asm("inx;"*val)
+		if n := adsmInt(val) != None: asm(f"inx;"*n)
+		else: A.use(); A.value = X; A += val; X.value = A; A.unuse()
+		return self
+	def __isub__(self, val):
+		global A, X
+		if n := adsmInt(val) != None: asm(f"dex;"*n)
 		else: A.use(); A.value = X; A += val; X.value = A; A.unuse()
 		return self
 	
-	def __sub__(self, val): pass
-	def __rsub__(self, val): pass
-	def __isub__(self, val):
-		global A, X
-		if isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: val = int(val.arg[1:],16)
-		if isinstance(val, int) and (val >= 1 and val <= 3): asm("dex;"*val)
-		else: A.use(); A.value = X; A -= val; X.value = A; A.unuse()
-		return self
+	# def __iand__(self, val): return self
+	# def __ior__(self, val): return self
+	# def __ixor__(self, val): return self
+	# def __irshift__(self, val): return self
+	# def __ilshift__(self, val): return self
 	
-	def __and__(self, val): pass
-	def __rand__(self, val): pass
-	def __iand__(self, val): return self
-	def __or__(self, val): pass
-	def __ror__(self, val): pass
-	def __ior__(self, val): return self
-	def __xor__(self, val): pass
-	def __rxor__(self, val): pass
-	def __ixor__(self, val): return self
-	
-	def __rshift__(self, val): pass
-	def __rrshift__(self, val): pass
-	def __irshift__(self, val): return self
-	def __lshift__(self, val): pass
-	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): return self
-	
-	def compare(self, op):
-		if isinstance(op, int): asm(f"cpx #${hex(op)[2:]}")
-		elif isinstance(op, AddressingMode):
-			acceptedModes = [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE]
-			if op.mode in acceptedModes: asm(f"cpx {op.swap};")
-			else: catch("REGX.COMPARE()", f"Unaccepted addressing mode ({str(op)}).")
-	
-	def __eq__(self, val): pass
-	def __ne__(self, val): pass
-	def __lt__(self, val): pass
-	def __gt__(self, val): pass
-	def __le__(self, val): pass
-	def __ge__(self, val): pass
+	def compare(self, op): opSwap("REGX.__COMPARE__()", val, "cpx", [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE])
 X = RegX()
 
-class RegY (Register):
+class RegY (general.Register):
 	def __init__(self): super().__init__("Y", 2)
 	def __len__(self): pass #depends on pc flag
 	def __setattr__(self, x, op):
 		if x == "value":
-			if isinstance(op, Register):
+			if isinstance(op, general.Register):
 				match op.name:
 					case "A": general.asm.append("tay;")
 					case "X": general.asm.append("txy;")
-			elif isinstance(op, int): asm(f"ldy #${hex(op)[2:]}")
-			elif isinstance(op, AddressingMode):
-				acceptedModes = [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
-				if op.mode in acceptedModes: asm(f"ldy {op.swap};")
-				else: catch("REGY.__SETATTR__()", f"Unaccepted addressing mode ({str(op)}).")
+			else: opSwap("REGY.__SETATTR__()", op, "ldy", [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X], True)
 		super().__setattr__(x, op)
 	def push(self): asm("phy;")
 	def pull(self): asm("ply;")
 	
-	def __add__(self, val): pass
-	def __radd__(self, val): pass
 	def __iadd__(self, val):
 		global A, Y
-		if isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: val = int(val.arg[1:],16)
-		if isinstance(val, int) and (val >= 1 and val <= 3): asm("iny;"*val)
-		else: A.use(); A.value = Y; A += val; Y.value = A; A.unuse()
+		if n := adsmInt(val) != None: asm(f"iny;"*n)
+		else: A.use(); A.value = X; A += val; X.value = A; A.unuse()
 		return self
-	
-	def __sub__(self, val): pass
-	def __rsub__(self, val): pass
 	def __isub__(self, val):
 		global A, Y
-		if isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: val = int(val.arg[1:],16)
-		if isinstance(val, int) and (val >= 1 and val <= 3): asm("dey;"*val)
-		else: A.use(); A.value = Y; A -= val; Y.value = A; A.unuse()
+		if n := adsmInt(val) != None: asm(f"dey;"*n)
+		else: A.use(); A.value = X; A += val; X.value = A; A.unuse()
 		return self
 	
-	def __and__(self, val): pass
-	def __rand__(self, val): pass
-	def __iand__(self, val): return self
-	def __or__(self, val): pass
-	def __ror__(self, val): pass
-	def __ior__(self, val): return self
-	def __xor__(self, val): pass
-	def __rxor__(self, val): pass
-	def __ixor__(self, val): return self
+	# def __iand__(self, val): return self
+	# def __ior__(self, val): return self
+	# def __ixor__(self, val): return self
+	# def __irshift__(self, val): return self
+	# def __ilshift__(self, val): return self
 	
-	def __rshift__(self, val): pass
-	def __rrshift__(self, val): pass
-	def __irshift__(self, val): return self
-	def __lshift__(self, val): pass
-	def __rlshift__(self, val): pass
-	def __ilshift__(self, val): return self
-	
-	def compare(self, op):
-		if isinstance(op, int): asm(f"cpy #${hex(op)[2:]}")
-		elif isinstance(op, AddressingMode):
-			acceptedModes = [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE]
-			if op.mode in acceptedModes: asm(f"cpy {op.swap};")
-			else: catch("REGY.COMPARE()", f"Unaccepted addressing mode ({str(op)}).")
-	
-	def __eq__(self, val): pass
-	def __ne__(self, val): pass
-	def __lt__(self, val): pass
-	def __gt__(self, val): pass
-	def __le__(self, val): pass
-	def __ge__(self, val): pass
+	def compare(self, op): opSwap("REGY.__COMPARE__()", val, "cpy", [MODE_IMMEDIATE, MODE_DIRECT, MODE_ABSOLUTE])
 Y = RegY()
 
 class StoredValue (general.ValueHook):
@@ -525,38 +360,6 @@ class StoredValue (general.ValueHook):
 	# mode [=/+=/-= etc.]
 	# ctx [str/storedvalue/addressingmode] = The context in which it's used (VAR =, &VAR =, VAR + X =, etc.)
 	def assign(self, val, mode, ctx):
-		'''
-		CTX MODE VAL
-		
-		ADSM(VAR) OP NUM
-		ADSM(VAR) OP REG
-		ADSM(VAR) OP VAR
-		ADSM(VAR) OP ADSM(VAR)
-		
-		ADSM(VAR) = ADSM(VAR)
-		*VAR1+5 = *VAR2+X
-		
-		for i in max(VAR1.width, VAR2.width):
-			if i > min(VAR1.width, VAR2.width):
-				VAR1+5+i = 0
-			else:
-				A = VAR2+X+i
-				VAR1+5+i = A
-		
-		ADSM(VAR) OP ADSM(VAR)
-		*VAR1+5 -= *VAR2+X
-
-		clc
-		for i in min(VAR1.width, VAR2.width):
-			A = VAR1+5+i
-			A -= VAR2+X+i
-			VAR1+5+i = A
-			if i != min(VAR1.width, VAR2.width):
-				if carry clear:
-					goto(LABEL_AFTER_SUB)
-		LABEL_AFTER_SUB:
-		'''
-		
 		# info collection (oh isinstance by beloved, you will never understand the horrors that is this function)
 		if isinstance(val, bool): val = 1 if val == True else 0
 		elif isinstance(val, StoredValue): val = AddressingMode(val.name)
@@ -570,10 +373,10 @@ class StoredValue (general.ValueHook):
 			if not mode in assignMap.keys(): catch("STOREDVALUE.ASSIGN()", f"Mode {mode} not valid.")
 		
 		def offsetAddress(adsm, ind):
-			if isinstance(adsm, AddressingMode): return AddressingMode(adsm.unresolvedText.replace(self.name, "0x"+hex(self.address+ind)[2:]))
-			else: AddressingMode("0x"+hex(addr+ind)[2:])
+			if isinstance(adsm, AddressingMode): return AddressingMode(adsm.unresolvedText.replace(self.name, "#0x"+hex(self.address+ind)[2:]))
+			else: return AddressingMode("#0x"+hex(addr+ind)[2:])
 		def transferSet(fr, to): # given the widths of two values that are being transferred, this tells you which byte in each value should be transferred. None means transfer a 0
-			# examples:
+			# examples: (assumes A is 1 byte)
 			# 4, 2 ---> ([2, 3], [0, 1])
 			# 3, 5 ---> ([None, None, 0, 1, 2], [0, 1, 2, 3, 4])
 			# 2, 2 ---> ([0, 1], [0, 1])
@@ -609,7 +412,7 @@ class StoredValue (general.ValueHook):
 						asm(f"{assignMap[mode]} {"0x"+hex(b)[2:]};")
 						asm(f"sta {offsetAddress(ctx, i*A.width).swap};")
 			if val != 0: A.unuse()
-		elif isinstance(val, Register): # ??? OP REG
+		elif isinstance(val, general.Register): # ??? OP REG
 			if not directAssign: catch("STOREDVALUE.ASSIGN()", f"Module doesn't support transfer from a register ({str(val)}) using non-direct assignment ({str(ctx)}).")
 			if self.width // A.width != self.width / A.width: catch("STOREDVALUE.ASSIGN()", f"Module doesn't support transfer from a register ({str(A)}) with a width that is not a multiple of the destination's width ({str(self)}). This can be fixed by using the 8-bit mode on the respective register.")
 			units = max(self.width, val.width) // A.width
@@ -763,157 +566,109 @@ class pointer (general.PointerHook):
 	def __le__(self, val): self.address.__le__(val)
 	def __ge__(self, val): self.address.__ge__(val)
 
-class AddressingMode:
-	def __init__(self, md):
-		self.unresolvedText = md
-		self.resolvedText = resolveMode(self.unresolvedText)
-		self.mode, self.arg = identifyMode(self.resolvedText)
-		self.swap = modeSyntax(self.mode, self.arg) if (self.mode != None and self.arg != None) else None
-	def __str__(self): return f"Address mode: {ADDRESSING_MODES[self.mode]["name"].capitalize() if self.mode != None else "None"}, {self.arg}; From {self.unresolvedText} => {self.resolvedText}"
-	def __setattr__(self, x, op):
-		if x == "value":
-			if isinstance(op, Register):
-				acceptedModes = []
-				reg = None
-				match op.name:
-					case "A":
-						acceptedModes = [MODE_DIRECT_INDIRECT_X, MODE_STACK_RELATIVE, MODE_DIRECT, MODE_DIRECT_INDIRECT_LONG, MODE_ABSOLUTE, MODE_ABSOLUTE_LONG,
-						MODE_DIRECT_INDIRECT_Y, MODE_DIRECT_INDIRECT, MODE_STACK_RELATIVE_INDIRECT_Y, MODE_DIRECT_X, MODE_DIRECT_INDIRECT_LONG_Y,
-						MODE_ABSOLUTE_Y, MODE_ABSOLUTE_X, MODE_ABSOLUTE_LONG_X]
-						reg = "A"
-					case "X":
-						acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_Y]
-						reg = "X"
-					case "Y":
-						acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X]
-						reg = "Y"
-				if self.mode in acceptedModes and reg != None: asm(f"st{reg.lower()} {self.swap};")
-				else: catch("ADDRESSINGMODE.__SETATTR__()", f"Unaccepted addressing mode ({str(self)} = {str(op)}).")
-			elif isinstance(op, int) or (isinstance(op, AddressingMode) and op.mode == MODE_IMMEDIATE):
-				if isinstance(op, AddressingMode): op = int(op.arg[1:],16)
-				if op == 0:
-					acceptedModes = [MODE_DIRECT, MODE_DIRECT_X, MODE_ABSOLUTE, MODE_ABSOLUTE_X]
-					if self.mode in acceptedModes: asm(f"stz {self.swap};")
-					else: catch("ADDRESSINGMODE.__SETATTR__()", f"Unaccepted addressing mode ({str(self)} = {str(op)}).")
-				else:
-					A.use()
-					A.value = op
-					self.value = A
-					A.unuse()
-		super().__setattr__(x, op)
-	
-	def __add__(self, val): pass
-	def __radd__(self, val): pass
-	def __iadd__(self, val):
-		if isinstance(val, int) or isinstance(val, AddressingMode):
-			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
-			if isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: val = int(val.arg[1:],16)
-			if val == 1: asm(f"inc {self.swap};")
-			else:
-				A.use()
-				A.value = self
-				A += val
-				self.value = A
-				A.unuse()
-		return self
-	
-	def __sub__(self, val): pass
-	def __rsub__(self, val): pass
-	def __isub__(self, val):
-		if isinstance(val, int) or isinstance(val, AddressingMode):
-			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
-			if isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE: val = int(val.arg[1:],16)
-			if val == 1: asm(f"dec {self.swap};")
-			else:
-				A.use()
-				A.value = self
-				A -= val
-				self.value = A
-				A.unuse()
-		return self
-	
-	def __and__(self, val): pass
-	def __rand__(self, val): pass
-	def __iand__(self, val): return self
-	def __or__(self, val): pass
-	def __ror__(self, val): pass
-	def __ior__(self, val): return self
-	def __xor__(self, val): pass
-	def __rxor__(self, val): pass
-	def __ixor__(self, val): return self
-	
-	def shiftLeft(self, val):
-		if isinstance(val, int) or (isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE):
-			if isinstance(val, AddressingMode): val = int(val.arg[1:],16)
-			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
-			if self.mode in acceptedModes: asm(f"asl {self.swap};"*val)
-			else:
-				A.use()
-				A.value = self
-				A.shiftLeft(val)
-				self.value = A
-				A.unuse()
-	def shiftRight(self, val):
-		if isinstance(val, int) or (isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE):
-			if isinstance(val, AddressingMode): val = int(val.arg[1:],16)
-			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
-			if self.mode in acceptedModes: asm(f"asr {self.swap};"*val)
-			else:
-				A.use()
-				A.value = self
-				A.shiftRight(val)
-				self.value = A
-				A.unuse()
-	def rotateLeft(self, val):
-		if isinstance(val, int) or (isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE):
-			if isinstance(val, AddressingMode): val = int(val.arg[1:],16)
-			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
-			if self.mode in acceptedModes: asm(f"rol {self.swap};"*val)
-			else:
-				A.use()
-				A.value = self
-				A.rotateLeft(val)
-				self.value = A
-				A.unuse()
-	def rotateRight(self, val):
-		if isinstance(val, int) or (isinstance(val, AddressingMode) and val.mode == MODE_IMMEDIATE):
-			if isinstance(val, AddressingMode): val = int(val.arg[1:],16)
-			acceptedModes = [MODE_DIRECT, MODE_ABSOLUTE, MODE_DIRECT_X, MODE_ABSOLUTE_X]
-			if self.mode in acceptedModes: asm(f"ror {self.swap};"*val)
-			else:
-				A.use()
-				A.value = self
-				A.rotateRight(val)
-				self.value = A
-				A.unuse()
-	
-	def __rshift__(self, val): pass
-	def __rrshift__(self, val): pass
-	def __irshift__(self, val):
-		self.shiftLeft(val)
-		return self
-	
-	def __lshift__(self, val): pass
-	def __rlshift__(self, val): pass
-	def __ilshift__(self, val):
-		self.shiftRight(val)
-		return self
-	
-	def __neg__(self): pass
-	def __pos__(self): pass
-	def __invert__(self): pass
-	def __abs__(self): pass
-	def __eq__(self, val): pass
-	def __ne__(self, val): pass
-	def __lt__(self, val): pass
-	def __gt__(self, val): pass
-	def __le__(self, val): pass
-	def __ge__(self, val): pass
+def funcReturnrti(): asm("rti;")
 
-def goto(lb): pass
+def goto(lb):
+	if not isinstance(lb, Label): catch("GOTO()", f"Arg must be of type Label. Got ({type(lb)})")
+	asm(f"jmp {lb.name};")
 
-#[{type}, {args}, {lbStart}, {lbEnd}]
+# DICTIONARY
+# type = "func/while/if..."
+# condition
+# name = {func name}
+# labelStart
+# labelEnd
+# args
+# return
 scopeStack = []
 
-def scopeStart(t, a, lbStart, lbEnd): pass
-def scopeEnd(): pass
+# CONDITIONS: {FLAG/REG/ADSR} {==/!=/>/</>=/<=} {VAL/ADSR} {LABEL} {REVERSE}
+def runCondition(cond, lb, rev):
+	# with the compare operator, the left side is subtracted by the right (e.g. cmp $5 => A - $5)
+	# A > 5 => CMP 5; BCS LBL; BEQ LBL
+	mat = re.search(r"([^=!<>]+)(==|!=|<=?|>=?)([^=!<>]+)", cond)
+	if mat == None: catch("", f"Condition ({cond}) not matched.")
+	lv = mat.group(1).strip()
+	con = mat.group(2).strip()
+	rv = mat.group(3).strip()
+	adsm = AddressingMode(lv)
+	if rv in ["True", "true", "1", 1]: rv = True
+	if rv in ["False", "false", "0", 0]: rv = False
+	if adsm.mode != None: A.use(); A.value = adsm; A.unuse(); lv = "A"
+	if lv in REGISTERS:
+		baseOp = "cmp" if lv == "A" else f"cp{lv.lower()}"
+		if rv == True: rv = 1
+		if rv == False: rv = 0
+		rAdsm = AddressingMode(str(rv))
+		asm(f"{baseOp} {rAdsm.swap};")
+		if rev:
+			match (con):
+				case "==": asm(f"bne {lb};")
+				case "!=": asm(f"beq {lb};")
+				case ">": asm(f"bcs {lb}; beq {lb};")
+				case "<": asm(f"bcc {lb}; beq {lb};")
+				case ">=": asm(f"bcs {lb};")
+				case "<=": asm(f"bcc {lb};")
+		else:
+			match (con):
+				case "==": asm(f"beq {lb};")
+				case "!=": asm(f"bne {lb};")
+				case ">": asm(f"bcc {lb};")
+				case "<": asm(f"bcs {lb};")
+				case ">=": asm(f"bcc {lb}; beq {lb};")
+				case "<=": asm(f"bcs {lb}; beq {lb};")
+	elif isinstance(rv, bool) and con in ["==", "!="] and lv in [f"PC.{x}" for x in "CNZV"]:
+		if con == "!=": rev = not rev
+		match (lv[-1]):
+			case "C": asm(f"{"bcs" if rv ^ rev else "bcc"} {lb}")
+			case "N": asm(f"{"bmi" if rv ^ rev else "bpl"} {lb}")
+			case "Z": asm(f"{"beq" if rv ^ rev else "bne"} {lb}")
+			case "V": asm(f"{"bvs" if rv ^ rev else "bvc"} {lb}")
+	else: catch("RUNCONDITION()", f"Could not identify condition type ({lv} {con} {rv}).")
+
+def funcStart(name, ret, args, sId, eId): pass
+def conditionStart(kind, cond, sId, eId): pass
+
+def loopStart(kind, cond, sId, eId):
+	if not kind in ["for", "while", "dowhile"]: catch("LOOPSTART()", f"Unknown loop type ({kind}).")
+	if kind == "while": runCondition(cond, eId, True)
+
+def funcEnd(): pass
+def conditionEnd(): pass
+
+def loopEnd():
+	scope = scopeStack[-1]
+	if scope["type"] == "while":
+		asm(f"bra {scope["labelStart"]}")
+	elif scope["type"] in ["for", "dowhile"]:
+		runCondition(scope["condition"], scope["labelStart"], False)
+	else: catch("LOOPEND()", f"Scope type ({scope["type"]}) not recognized.")
+
+# "dowhile", "while", "for", "elseif", "if", "else", "func"
+
+# LOOPS / CONDITIONALS: scopeStart({name}, {condition}, {start id}, {end id})
+# FUNCTIONS:            scopeStart([{return type}, {func name}], [{arg declarations}], {start id}, {end id})
+TYPES_LOOP = ["while", "dowhile", "for"]
+TYPES_COND = ["if", "else", "elseif"]
+def scopeStart(t, a, lbStart, lbEnd):
+	if not (isinstance(lbStart, str) and isinstance(lbEnd, str)): catch("SCOPESTART()", f"Final two arguments ({lbStart}, {lbEnd}) must be strings.")
+	if isinstance(t, str) and isinstance(a, str) and t in TYPES_LOOP + TYPES_COND:
+		scopeStack.append({"type": t, "condition": a, "labelStart": lbStart, "labelEnd": lbEnd})
+		if t in TYPES_LOOP: loopStart(t, a, lbStart, lbEnd)
+		else: conditionStart(t, a, lbStart, lbEnd)
+	elif isinstance(t, list) and isinstance(a, list):
+		if len(t) != 2: catch("SCOPESTART()", "Function signature must have two arguments.")
+		if not isinstance(t[0], str) or not isinstance(t[1], str): catch("SCOPESTART()", "Function signature argument must be all strings.")
+		if any([not isinstance(x, str) for x in a]): catch("SCOPESTART()", "Function arguments must be all strings.")
+		scopeStack.append({"type": "func", "return": t[0], "name": t[1], "args": a, "labelStart": lbStart, "labelEnd": lbEnd})
+		funcStart(t[1], t[0], a, lbStart, lbEnd)
+	else: catch("SCOPESTART()", "Unrecognized scope type.")
+
+def scopeEnd():
+	if len(scopeStack) < 1: catch("SCOPEEND()", "No scopes are open.")
+	scopeType = scopeStack[-1]["type"]
+	if scopeType in TYPES_LOOP: loopEnd()
+	elif scopeType in TYPES_COND: conditionEnd()
+	elif scopeType == "func": funcEnd()
+	else: catch("SCOPEEND()", f"Scope type ({scopeType}) not recognized.")
+	scopeStack.pop()

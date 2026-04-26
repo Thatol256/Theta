@@ -2,6 +2,7 @@ from datetime import datetime
 import tonFilesystem as tfs
 import subprocess
 import general
+import sys
 import re
 
 import traceback
@@ -12,7 +13,7 @@ HEADER_CODE = (
 )
 
 # lone keywords that will trigger a function (return ---> funcReturn())
-KEYWORD_FUNCTIONS = ["return"]
+KEYWORD_FUNCTIONS = ["returnRti"]
 
 def printBar(): print("="*50)
 thrown = False
@@ -29,17 +30,25 @@ def throw(area, e):
 		printBar()
 		input()
 		raise Exception()
-def catch(area, mess): # mess is short for message but i guess the word mess works in this context too
-	printBar()
-	print(f"{area.upper()} CAUGHT AN ERROR:")
-	printBar()
-	print(mess)
-	printBar()
-	input()
-	raise Exception()
+
+HELPTEXT = "Syntax:\nmain.py (INPUT FILE) -o (OUTPUT FILE)"
 
 try:
-	file = tfs.read("./test.tha")
+	inFile = ""
+	outFile = ""
+	
+	argsLen = len(sys.argv) #includes this file
+	if argsLen == 1:
+		inFile = input("Put input file: ")
+		outFile = input("Put output file: ")
+	elif argsLen != 4 or sys.argv[2] != "-o":
+		print(HELPTEXT)
+		sys.exit(0)
+	else:
+		inFile = sys.argv[1]
+		outFile = sys.argv[3]
+	
+	file = tfs.read(inFile)
 	file = re.sub(r"\/\/.*", "", file)
 	file = re.sub(r"\/\*[\s\S]*\*\/", "", file)
 	
@@ -111,7 +120,7 @@ try:
 		if scopeType == "for":
 			scopeArgs = scopeArgs.split(";")
 			scopePrefix.append(scopeArgs[0])
-			scopeCode += "\n\t" + scopeArgs[2]
+			scopeCode = "\n\t" + scopeArgs[2] + scopeCode
 			scopeArgs = scopeArgs[1]
 		# TODO: PROCESS CONDITION STATEMENTS
 		if scopePrefix == []: scopePrefix = ""
@@ -174,9 +183,18 @@ try:
 	
 	file = "\n".join([importFiles, file])
 	
-	print(file)
 	try: exec(file)
 	except Exception as e: throw("ASSEMBLY MODULE", e)
-	input(general.asm)
-	input("TRANSLATION COMPLETE.")
+	
+	lblNames = [x.name for x in general.LABELS]
+	for i, a in enumerate(general.asm):
+		plbl = a.replace(":", "").strip()
+		if not plbl in lblNames:
+			general.asm[i] = f"\t{a}"
+	
+	tfs.create(outFile)
+	tfs.write(outFile, "\n".join(general.asm))
+	
+	if argsLen > 1: print("TRANSLATION COMPLETE.")
+	else: input("TRANSLATION COMPLETE.")
 except Exception as e: throw("PRE-PROCESSOR", e)
