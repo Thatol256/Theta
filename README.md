@@ -10,7 +10,7 @@ Theta is a programming language that will easily allow you to generate Assembly 
 
 ## Current Progress
 - The Pre-processor is complete, although there is still minimal error checking.
-- The goal of this project wasn't to impliment every planned feature, but rather to impliment enough of them to translate a sample Assembly file, so although not everything is complete, it is considered done.
+- The goal of this project wasn't to impliment every planned feature, but rather to impliment enough of them to translate a sample Theta file, so although not everything is complete, it is considered done.
 - Some features that have not been implimented yet: If statements, pointers, for loops, arrays.
 - An example of Theta code is present in the "example" folder, alongside an Assembly file the Theta code is trying to mimic.
 - The Assembly code that will be generated from this program should function similarly to that file.
